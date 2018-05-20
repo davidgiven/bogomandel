@@ -13,24 +13,31 @@ xc:         .byte 0
 .text
     * = $0e00
     jsr setup
+    jsr fill_drawing_area
+    rts
 
+; Fills the drawing area.
+fill_drawing_area:
 .(
-    stz xc
-loop:
-    lda xc
-    sta screeny
-    lsr
-    sta screenx
+    stz screeny
+yloop:
+    stz screenx
+xloop:
     jsr calculate_screen_address
-    lda palette+7
+    lda palette+8
     sta pixelcol
     jsr plot
 
-    inc xc
-    bne loop
-.)
+    lda screenx
+    inc
+    sta screenx
+    cmp #128
+    bne xloop
 
+    inc screeny
+    bne yloop
     rts
+.)
 
 ; Loads screenptr with the address of the pixel at screenx/screeny.
 calculate_screen_address:
@@ -50,16 +57,17 @@ calculate_screen_address:
     adc #0
     sta screenptr+1
 
-    ; Add the X offset
+    ; Calculate the X offset (into pixelmask/A)
     lda screenx
     and #$fe        ; mask off even/odd pixels; range is 0..159
     stz pixelmask   ; reuse this as high byte of X offset
     asl             ; *2
     rol pixelmask
     asl             ; *4
-    rol pixelmask
+    rol pixelmask   ; clears C
     
-    clc
+    ; Add on the X offset.
+    ; C is already clear
     adc screenptr+0
     sta screenptr+0
     lda screenptr+1
@@ -138,6 +146,14 @@ palette:
     .byte %00100010
     .byte %00101000
     .byte %00101010
+    .byte %10000000
+    .byte %10000010
+    .byte %10001000
+    .byte %10001010
+    .byte %10100000
+    .byte %10100010
+    .byte %10101000
+    .byte %10101010
 
 setup:
     ldx #0
@@ -154,5 +170,6 @@ setup_bytes:
     .byte 22, 2 ; mode 2
     .byte 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
     .byte 28, 16, 31, 19, 0 ; text window
+    .byte 19, 8, 4, 0, 0, 0 ; colour 8 = blue
 setup_bytes_end:
 .)
