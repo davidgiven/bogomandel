@@ -1,4 +1,6 @@
 oswrch = $ffee
+romsel = $fe30
+romsel_ram = $f4
 
 .zero
 screenptr:  .word 0
@@ -17,6 +19,8 @@ midx:       .byte 0
 midy:       .byte 0
 sidecount:  .byte 0
 
+mulptr:     .word 0
+
 xc:         .byte 0
 
 #define PUSH(var) lda var : pha
@@ -24,15 +28,30 @@ xc:         .byte 0
 
 .text
     * = $0e00
-    jsr setup
-    lda #0
-    sta boxx1
-    sta boxy1
+    jsr init_screen
+    jsr setup_unsigned_tables
+    jsr setup_signed_tables
+    stz boxx1
+    stz boxy1
     lda #255
     sta boxx2
     sta boxy2
     jsr box
+
+    ; Put BASIC back in the ROM slot to avoid hilarity on exit.
+safeexit:
+    lda #12
+    sei
+    sta romsel
+    sta romsel_ram
+    cli
     rts
+
+lookup:
+    jsr map_multiplication
+    lda (mulptr)
+    sta $70
+    bra safeexit
 
 box:
 .(
@@ -141,6 +160,20 @@ box:
     POP(boxy2)
     POP(boxx2)
 
+    ; Recurse into bottom right.
+
+    PUSH(boxx1)
+    PUSH(boxy1)
+
+    lda midx
+    sta boxx1
+    lda midy
+    sta boxy1
+    jsr box
+
+    POP(boxy1)
+    POP(boxx1)
+
     ; Recurse into bottom left.
 
     PUSH(boxx2)
@@ -169,20 +202,6 @@ box:
     POP(boxy2)
     POP(boxx1)
 
-    ; Recurse into bottom right.
-
-    PUSH(boxx1)
-    PUSH(boxy1)
-
-    lda midx
-    sta boxx1
-    lda midy
-    sta boxy1
-    jsr box
-
-    POP(boxy1)
-    POP(boxx1)
-
 dont_recurse:
     POP(midy)
     POP(midx)
@@ -190,10 +209,19 @@ dont_recurse:
     rts
 
 calculate:
+.(
+    jsr pick
+    lda pixelcol
+    cmp #$80
+    bne dont_calculate
+
     lda palette+7
     sta pixelcol
     jsr plot
+
+dont_calculate:
     rts
+.)
 
 hline:
     jsr calculate
@@ -390,7 +418,7 @@ palette:
     .byte %10101000
     .byte %10101010
 
-setup:
+init_screen:
     ldx #0
 .(
 loop:
@@ -412,4 +440,151 @@ setup_bytes:
     .byte 17, 128+0 ; set background colour
     .byte 12 ; clear window
 setup_bytes_end:
+.)
+
+; Points mulptr at the result of signed X*Y>>8.
+; Preserves X, Y.
+map_multiplication:
+    ; Set up RAM bank.
+    tya
+    rol
+    rol
+    rol
+    and #%00000011
+    clc
+    adc #4 ; RAM banks are in 4, 5, 6, 7
+    sei
+    sta romsel
+    sta romsel_ram
+    cli
+
+    tya
+    and #%00111111
+    ora #%10000000 ; add $80, the high byte of sideways RAM
+    sta mulptr+1
+    stx mulptr+0
+    rts
+    
+; Sets up the unsigned multiplication tables in sideway RAM. Abuses screenptr
+; for workspace.
+setup_unsigned_tables:
+.(
+    ldy #0
+yloop:
+    ldx #0
+    stz screenptr+0
+    stz screenptr+1
+xloop:
+    jsr map_multiplication
+
+    /* Load the multiplication result into A:temp. */
+    lda screenptr+0
+    sta temp
+    lda screenptr+1
+
+    /* Shift right by 6 for the fixed point adjustment. */
+    /* (Implemented as shifting left by 2 and taking the high byte. */
+
+    asl temp
+    rol
+    asl temp
+    rol
+    bmi overflow
+    sta (mulptr)
+
+    /* Add 8-bit Y to (screenptr). */
+    tya
+    clc
+    adc screenptr+0
+    sta screenptr+0
+    lda screenptr+1
+    adc #0
+    sta screenptr+1
+    bmi overflow
+
+nextx:
+    inx
+    cpx #$80
+    bne xloop
+nexty:
+    iny
+    cpy #$80
+    bne yloop
+    rts
+
+overflow:
+    lda #$7f
+    sta (mulptr)
+    bra nextx
+.)
+
+/* Once the unsigned tables have been generated, we can use this to fill in
+ * the gaps for negative numbers.
+ */
+setup_signed_tables:
+.(
+    ldy #0
+yloop:
+    ldx #0
+xloop:
+    phx
+    txa
+    eor #$ff
+    inc
+    sta screenx
+    plx
+
+    phy
+    tya
+    eor #$ff
+    inc
+    sta screeny
+    ply
+
+    jsr map_multiplication
+    lda (mulptr)
+
+    ; Positive result goes in negx, negy.
+
+    phx
+    ldx screenx
+    phy
+    ldy screeny
+    pha
+    jsr map_multiplication
+    pla
+    sta (mulptr)
+    ply
+    plx
+
+    ; Everything else uses a negative result.
+
+    eor #$ff
+    inc
+
+    ; negx, posy.
+
+    phx
+    ldx screenx
+    pha
+    jsr map_multiplication
+    pla
+    sta (mulptr)
+    plx
+
+    phy
+    ldy screeny
+    pha
+    jsr map_multiplication
+    pla
+    sta (mulptr)
+    ply
+
+    inx
+    cpx #$80
+    bne xloop
+    iny
+    cpy #$80
+    bne yloop
+    rts
 .)
