@@ -7,6 +7,7 @@ BORDER = 38
 
 .zero
 screenptr:  .word 0
+screenptr2: .word 0 ; mirrored pixel on the bottom of the display
 screenx:    .byte 0
 screeny:    .byte 0
 
@@ -43,11 +44,27 @@ iterations: .byte 0
     jsr init_screen
     jsr setup_unsigned_tables
     jsr setup_signed_tables
+
+    ; Draw left.
+
     lda #BORDER
     sta boxx1
     sta boxy1
+    lda #127
+    sta boxx2
+    lda #127
+    sta boxy2
+    jsr box
+
+    ; Draw right.
+
+    lda #128
+    sta boxx1
+    lda #BORDER
+    sta boxy1
     lda #255-BORDER
     sta boxx2
+    lda #127
     sta boxy2
     jsr box
 
@@ -317,14 +334,24 @@ calculate_screen_address:
     lsr                 ; twice the row number (0, 2, 4...)
     tax
 
-    lda screeny
-    and #$07            ; inter-char row
-    clc
-    adc row_table+0, x
+    ; Top half.
+
+    lda row_table+0, x
     sta screenptr+0
     lda row_table+1, x
     adc #0
     sta screenptr+1
+
+    ; Flip for the bottom half.
+
+FLIPADDR = 7 + $3000 + $8000 - 640
+    lda #<FLIPADDR
+    sec
+    sbc screenptr+0
+    sta screenptr2+0
+    lda #>FLIPADDR
+    sbc screenptr+1
+    sta screenptr2+1
 
     ; Calculate the X offset (into pixelmask/A)
     lda screenx     ; remember these are logical pixels (0..255)
@@ -335,11 +362,41 @@ calculate_screen_address:
     
     ; Add on the X offset.
     ; C is already clear
+    tax
     adc screenptr+0
     sta screenptr+0
     lda screenptr+1
     adc pixelmask
     sta screenptr+1
+    txa
+
+    clc
+    adc screenptr2+0
+    sta screenptr2+0
+    lda screenptr2+1
+    adc pixelmask
+    sta screenptr2+1
+
+    /* Now adjust for the interchar row. */
+
+    lda screeny
+    and #$07            ; interchar row
+    sta pixelmask
+
+    clc
+    adc screenptr+0
+    sta screenptr+0
+    bcc dont_add_screenptr0
+    inc screenptr+1
+dont_add_screenptr0:
+
+    sec
+    lda screenptr2+0
+    sbc pixelmask
+    sta screenptr2+0
+    bcs dont_add_screenptr2
+    dec screenptr2+1
+dont_add_screenptr2:
 
 exit:
     rts
@@ -392,11 +449,20 @@ go_to_pixel_right:
     bne exit
 
     clc
+    lda screenptr2+0
+    adc #8
+    sta screenptr2+0
+    bcc dont_add_screenptr2
+    inc screenptr2+1
+dont_add_screenptr2:
+
+    clc
     lda screenptr+0
     adc #8
     sta screenptr+0
-    bcc exit
+    bcc dont_add_screenptr0
     inc screenptr+1
+dont_add_screenptr0:
 
 exit:
     rts
@@ -406,9 +472,17 @@ exit:
 go_to_pixel_down:
 .(
     inc screenptr+0
-    bne dont_increment_screenptr
+    bne dont_increment_screenptr0
     inc screenptr+1
-dont_increment_screenptr:
+dont_increment_screenptr0:
+
+    lda screenptr2+0
+    dec
+    sta screenptr2+0
+    cmp #$ff
+    bne dont_decrement_screenptr2
+    dec screenptr2+1
+dont_decrement_screenptr2:
 
     lda screeny
     inc
@@ -416,13 +490,23 @@ dont_increment_screenptr:
     and #7
     bne exit
 
+ROWSIZE = 640 - 8
     clc
     lda screenptr+0
-    adc #$78
+    adc #<ROWSIZE
     sta screenptr+0
     lda screenptr+1
-    adc #$02
+    adc #>ROWSIZE
     sta screenptr+1
+
+    sec
+    lda screenptr2+0
+    sbc #<ROWSIZE
+    sta screenptr2+0
+    lda screenptr2+1
+    sbc #>ROWSIZE
+    sta screenptr2+1
+
 exit:
     rts
 .)
@@ -449,6 +533,7 @@ even_pixel:
     and pixelmask
     ora pixelcol
     sta (screenptr)
+    sta (screenptr2)
     rts
 .)
 
