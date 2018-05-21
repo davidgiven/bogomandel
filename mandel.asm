@@ -586,12 +586,11 @@ loop:
 
 setup_bytes:
     .byte 22, 2 ; mode 2
-    .byte 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
     .byte 19, 8, 0, 0, 0, 0 ; colour 0 = black
     .byte 28, 0, 31, 15, 0 ; text window
     .byte 17, 128+8 ; set background colour
     .byte 12 ; clear window
-    .byte 28, 16, 31, 19, 0 ; text window
+    .byte 28, 14, 31, 19, 0 ; text window
     .byte 17, 128+0 ; set background colour
     .byte 12 ; clear window
 setup_bytes_end:
