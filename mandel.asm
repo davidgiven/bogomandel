@@ -8,34 +8,77 @@ screeny:    .byte 0
 pixelcol:   .byte 0
 pixelmask:  .byte 0
 
+boxx:       .byte 0
+boxy:       .byte 0
+boxsize:    .byte 0
+sidecount:  .byte 0
+
 xc:         .byte 0
 
 .text
     * = $0e00
     jsr setup
-    jsr fill_drawing_area
+    stz boxx
+    stz boxy
+    lda #255
+    sta boxsize
+    jsr box
     rts
 
-; Fills the drawing area.
-fill_drawing_area:
+box:
 .(
-    stz screeny
-yloop:
-    stz screenx
-xloop:
+    lda boxx
+    sta screenx
+    lda boxy
+    sta screeny
+    lda boxsize
+    lsr
+    sta sidecount
     jsr calculate_screen_address
-    lda palette+8
+    jsr hline
+
+    ; screenx, screeny preserved
+    lda boxsize
+    sta sidecount
+    jsr calculate_screen_address
+    jsr vline
+
+    ; screeny preserved
+    lda boxx
+    sta screenx
+    lda boxsize
+    lsr
+    sta sidecount
+    jsr calculate_screen_address
+    jsr hline
+
+    lda boxx
+    sta screenx
+    lda boxy
+    sta screeny
+    lda boxsize
+    sta sidecount
+    jsr calculate_screen_address
+    jsr vline
+
+    rts
+
+hline:
+    lda palette+7
     sta pixelcol
     jsr plot
+    jsr go_to_pixel_right
+    dec sidecount
+    bne hline
+    rts
 
-    lda screenx
-    inc
-    sta screenx
-    cmp #128
-    bne xloop
-
-    inc screeny
-    bne yloop
+vline:
+    lda palette+7
+    sta pixelcol
+    jsr plot
+    jsr go_to_pixel_down
+    dec sidecount
+    bne vline
     rts
 .)
 
@@ -113,6 +156,51 @@ row_table:
     row_addr(31)
 .)
 
+; Given a calculated screenptr, moves to the next horizontal pixel.
+go_to_pixel_right:
+.(
+    lda screenx
+    inc
+    sta screenx
+    and #1
+    bne exit
+
+    clc
+    lda screenptr+0
+    adc #8
+    sta screenptr+0
+    bcc exit
+    inc screenptr+1
+
+exit:
+    rts
+.)
+
+; Given a calculated screenptr, moves to the next vertical pixel.
+go_to_pixel_down:
+.(
+    inc screenptr+0
+    bne dont_increment_screenptr
+    inc screenptr+1
+dont_increment_screenptr:
+
+    lda screeny
+    inc
+    sta screeny
+    and #7
+    bne exit
+
+    clc
+    lda screenptr+0
+    adc #$78
+    sta screenptr+0
+    lda screenptr+1
+    adc #$02
+    sta screenptr+1
+exit:
+    rts
+.)
+
 ; Plot colour pixelcol to the pixel at screenx/screeny (calculate_screen_address must
 ; have been called). Corrupts pixelcol!
 plot:
@@ -169,7 +257,12 @@ loop:
 setup_bytes:
     .byte 22, 2 ; mode 2
     .byte 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
-    .byte 28, 16, 31, 19, 0 ; text window
     .byte 19, 8, 4, 0, 0, 0 ; colour 8 = blue
+    .byte 28, 0, 31, 15, 0 ; text window
+    .byte 17, 128+8 ; set background colour
+    .byte 12 ; clear window
+    .byte 28, 16, 31, 19, 0 ; text window
+    .byte 17, 128+0 ; set background colour
+    .byte 12 ; clear window
 setup_bytes_end:
 .)
