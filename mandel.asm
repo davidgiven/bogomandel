@@ -6,8 +6,8 @@ ITERATIONS = 16
 BORDER = 38
 
 .zero
-screenptr:  .word 0
-screenptr2: .word 0 ; mirrored pixel on the bottom of the display
+screenptr_top: .word 0
+screenptr_bot: .word 0 ; mirrored pixel on the bottom of the display
 screenx:    .byte 0
 screeny:    .byte 0
 
@@ -325,7 +325,7 @@ vline:
     rts
 .)
 
-; Loads screenptr with the address of the pixel at screenx/screeny.
+; Loads screenptr_top with the address of the pixel at screenx/screeny.
 calculate_screen_address:
 .(
     lda screeny
@@ -337,21 +337,21 @@ calculate_screen_address:
     ; Top half.
 
     lda row_table+0, x
-    sta screenptr+0
+    sta screenptr_top+0
     lda row_table+1, x
     adc #0
-    sta screenptr+1
+    sta screenptr_top+1
 
     ; Flip for the bottom half.
 
 FLIPADDR = 7 + $3000 + $8000 - 640
     lda #<FLIPADDR
     sec
-    sbc screenptr+0
-    sta screenptr2+0
+    sbc screenptr_top+0
+    sta screenptr_bot+0
     lda #>FLIPADDR
-    sbc screenptr+1
-    sta screenptr2+1
+    sbc screenptr_top+1
+    sta screenptr_bot+1
 
     ; Calculate the X offset (into pixelmask/A)
     lda screenx     ; remember these are logical pixels (0..255)
@@ -363,19 +363,19 @@ FLIPADDR = 7 + $3000 + $8000 - 640
     ; Add on the X offset.
     ; C is already clear
     tax
-    adc screenptr+0
-    sta screenptr+0
-    lda screenptr+1
+    adc screenptr_top+0
+    sta screenptr_top+0
+    lda screenptr_top+1
     adc pixelmask
-    sta screenptr+1
+    sta screenptr_top+1
     txa
 
     clc
-    adc screenptr2+0
-    sta screenptr2+0
-    lda screenptr2+1
+    adc screenptr_bot+0
+    sta screenptr_bot+0
+    lda screenptr_bot+1
     adc pixelmask
-    sta screenptr2+1
+    sta screenptr_bot+1
 
     /* Now adjust for the interchar row. */
 
@@ -384,19 +384,19 @@ FLIPADDR = 7 + $3000 + $8000 - 640
     sta pixelmask
 
     clc
-    adc screenptr+0
-    sta screenptr+0
-    bcc dont_add_screenptr0
-    inc screenptr+1
-dont_add_screenptr0:
+    adc screenptr_top+0
+    sta screenptr_top+0
+    bcc dont_add_screenptr_top
+    inc screenptr_top+1
+dont_add_screenptr_top:
 
     sec
-    lda screenptr2+0
+    lda screenptr_bot+0
     sbc pixelmask
-    sta screenptr2+0
-    bcs dont_add_screenptr2
-    dec screenptr2+1
-dont_add_screenptr2:
+    sta screenptr_bot+0
+    bcs dont_add_screenptr_bot
+    dec screenptr_bot+1
+dont_add_screenptr_bot:
 
 exit:
     rts
@@ -437,7 +437,7 @@ row_table:
     row_addr(31)
 .)
 
-; Given a calculated screenptr, moves to the next horizontal physical pixel
+; Given a calculated screenptr_top, moves to the next horizontal physical pixel
 ; (which is two logical pixels because MODE 2).
 go_to_pixel_right:
 .(
@@ -449,40 +449,40 @@ go_to_pixel_right:
     bne exit
 
     clc
-    lda screenptr2+0
+    lda screenptr_bot+0
     adc #8
-    sta screenptr2+0
-    bcc dont_add_screenptr2
-    inc screenptr2+1
-dont_add_screenptr2:
+    sta screenptr_bot+0
+    bcc dont_add_screenptr_bot
+    inc screenptr_bot+1
+dont_add_screenptr_bot:
 
     clc
-    lda screenptr+0
+    lda screenptr_top+0
     adc #8
-    sta screenptr+0
-    bcc dont_add_screenptr0
-    inc screenptr+1
-dont_add_screenptr0:
+    sta screenptr_top+0
+    bcc dont_add_screenptr_top
+    inc screenptr_top+1
+dont_add_screenptr_top:
 
 exit:
     rts
 .)
 
-; Given a calculated screenptr, moves to the next vertical pixel.
+; Given a calculated screenptr_top, moves to the next vertical pixel.
 go_to_pixel_down:
 .(
-    inc screenptr+0
-    bne dont_increment_screenptr0
-    inc screenptr+1
-dont_increment_screenptr0:
+    inc screenptr_top+0
+    bne dont_increment_screenptr_top
+    inc screenptr_top+1
+dont_increment_screenptr_top:
 
-    lda screenptr2+0
+    lda screenptr_bot+0
     dec
-    sta screenptr2+0
+    sta screenptr_bot+0
     cmp #$ff
-    bne dont_decrement_screenptr2
-    dec screenptr2+1
-dont_decrement_screenptr2:
+    bne dont_decrement_screenptr_bot
+    dec screenptr_bot+1
+dont_decrement_screenptr_bot:
 
     lda screeny
     inc
@@ -492,20 +492,20 @@ dont_decrement_screenptr2:
 
 ROWSIZE = 640 - 8
     clc
-    lda screenptr+0
+    lda screenptr_top+0
     adc #<ROWSIZE
-    sta screenptr+0
-    lda screenptr+1
+    sta screenptr_top+0
+    lda screenptr_top+1
     adc #>ROWSIZE
-    sta screenptr+1
+    sta screenptr_top+1
 
     sec
-    lda screenptr2+0
+    lda screenptr_bot+0
     sbc #<ROWSIZE
-    sta screenptr2+0
-    lda screenptr2+1
+    sta screenptr_bot+0
+    lda screenptr_bot+1
     sbc #>ROWSIZE
-    sta screenptr2+1
+    sta screenptr_bot+1
 
 exit:
     rts
@@ -529,11 +529,11 @@ plot:
     asl pixelmask
 
 even_pixel:
-    lda (screenptr)
+    lda (screenptr_top)
     and pixelmask
     ora pixelcol
-    sta (screenptr)
-    sta (screenptr2)
+    sta (screenptr_top)
+    sta (screenptr_bot)
     rts
 .)
 
@@ -544,7 +544,7 @@ pick:
     lda screenx
     ror
     ror             ; odd/even bit to C
-    lda (screenptr)
+    lda (screenptr_top)
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
     bcc even_pixel
@@ -619,22 +619,22 @@ map_multiplication:
     stx mulptr+0
     rts
     
-; Sets up the unsigned multiplication tables in sideway RAM. Abuses screenptr
+; Sets up the unsigned multiplication tables in sideway RAM. Abuses screenptr_top
 ; for workspace.
 setup_unsigned_tables:
 .(
     ldy #0
 yloop:
     ldx #0
-    stz screenptr+0
-    stz screenptr+1
+    stz screenptr_top+0
+    stz screenptr_top+1
 xloop:
     jsr map_multiplication
 
     /* Load the multiplication result into A:temp. */
-    lda screenptr+0
+    lda screenptr_top+0
     sta temp
-    lda screenptr+1
+    lda screenptr_top+1
 
     /* Shift right by 6 for the fixed point adjustment. */
     /* (Implemented as shifting left by 2 and taking the high byte. */
@@ -646,14 +646,14 @@ xloop:
     bmi overflow
     sta (mulptr)
 
-    /* Add 8-bit Y to (screenptr). */
+    /* Add 8-bit Y to (screenptr_top). */
     tya
     clc
-    adc screenptr+0
-    sta screenptr+0
-    lda screenptr+1
+    adc screenptr_top+0
+    sta screenptr_top+0
+    lda screenptr_top+1
     adc #0
-    sta screenptr+1
+    sta screenptr_top+1
     bmi overflow
 
 nextx:
