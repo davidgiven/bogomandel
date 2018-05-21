@@ -2,6 +2,9 @@ oswrch = $ffee
 romsel = $fe30
 romsel_ram = $f4
 
+ITERATIONS = 16
+BORDER = 38
+
 .zero
 screenptr:  .word 0
 screenx:    .byte 0
@@ -19,9 +22,18 @@ midx:       .byte 0
 midy:       .byte 0
 sidecount:  .byte 0
 
+corecolour: .byte 0
+colourflag: .byte 0
+
 mulptr:     .word 0
 
-xc:         .byte 0
+ci:         .byte 0
+cr:         .byte 0
+zi:         .byte 0
+zr:         .byte 0
+zi2:        .byte 0
+zr2:        .byte 0
+iterations: .byte 0
 
 #define PUSH(var) lda var : pha
 #define POP(var) pla : sta var
@@ -31,9 +43,10 @@ xc:         .byte 0
     jsr init_screen
     jsr setup_unsigned_tables
     jsr setup_signed_tables
-    stz boxx1
-    stz boxy1
-    lda #255
+    lda #BORDER
+    sta boxx1
+    sta boxy1
+    lda #255-BORDER
     sta boxx2
     sta boxy2
     jsr box
@@ -64,6 +77,10 @@ box:
     sta screeny
     jsr calculate_screen_address
     jsr calculate
+
+    lda pixelcol
+    sta corecolour
+    stz colourflag
 
     ; Top stroke
 
@@ -116,6 +133,13 @@ box:
     jsr calculate_screen_address
     jsr vline
 
+    ; Are all the sides the same colour? If so, don't bother recursing.
+
+    lda colourflag
+    bne recurse
+    jmp floodfill
+recurse:
+
     ; Start recursion.
 
     PUSH(midx)
@@ -133,7 +157,7 @@ box:
     and #$fe ; round down
     sta midx
     cmp boxx1
-    beq dont_recurse
+    beq too_small
     
     lda boxy1
     lsr
@@ -144,7 +168,7 @@ box:
     adc temp
     sta midy
     cmp boxy1
-    beq dont_recurse
+    beq too_small
 
     ; Recurse into top left.
 
@@ -202,7 +226,7 @@ box:
     POP(boxy2)
     POP(boxx1)
 
-dont_recurse:
+too_small:
     POP(midy)
     POP(midx)
 
@@ -215,11 +239,57 @@ calculate:
     cmp #$80
     bne dont_calculate
 
-    lda palette+7
-    sta pixelcol
+    jsr mandel
     jsr plot
 
 dont_calculate:
+    lda pixelcol
+    sec
+    sbc corecolour
+    ora colourflag
+    sta colourflag
+
+    rts
+.)
+
+; Fill the current box with pixelcol.
+floodfill:
+.(
+    lda boxy1
+    inc
+    cmp boxy2
+    beq exit
+    sta screeny
+yloop:
+    lda boxx1
+    inc
+    inc
+    sta screenx
+    lda boxx2
+    sec
+    sbc boxx1
+    bcc exit
+    lsr
+    beq exit
+    dec
+    beq exit
+    bmi exit
+    sta sidecount
+    jsr calculate_screen_address
+xloop:
+    lda corecolour
+    sta pixelcol
+    jsr plot
+    jsr go_to_pixel_right
+    dec sidecount
+    bne xloop
+
+    lda screeny
+    inc
+    sta screeny
+    cmp boxy2
+    bne yloop
+exit:
     rts
 .)
 
@@ -432,7 +502,7 @@ loop:
 setup_bytes:
     .byte 22, 2 ; mode 2
     .byte 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
-    .byte 19, 8, 4, 0, 0, 0 ; colour 4 = blue
+    .byte 19, 8, 0, 0, 0, 0 ; colour 0 = black
     .byte 28, 0, 31, 15, 0 ; text window
     .byte 17, 128+8 ; set background colour
     .byte 12 ; clear window
@@ -586,5 +656,75 @@ xloop:
     iny
     cpy #$80
     bne yloop
+    rts
+.)
+
+/* Actually do the work of calculating the colour of a pixel (in screenx, screeny). */
+mandel:
+.(
+    lda screeny
+    clc
+    adc #$80
+    sta ci
+
+    lda screenx
+    clc
+    adc #$80
+    sta cr
+
+    lda ci
+    sta zi
+    lda cr
+    sta zr
+    lda #ITERATIONS
+    sta iterations
+
+loop:
+    ldx zr
+    ldy zr
+    jsr map_multiplication
+    lda (mulptr)
+    cmp #$7f
+    beq bailout
+    sta zr2
+
+    ldx zi
+    ldy zi
+    jsr map_multiplication
+    lda (mulptr)
+    cmp #$7f
+    beq bailout
+    sta zi2
+
+    ldx zr
+    ldy zi
+    jsr map_multiplication
+    lda (mulptr)
+    cmp #$7f
+    beq bailout
+    
+    sta temp
+    clc
+    adc temp
+    clc
+    adc ci
+    sta zi
+
+    lda zr2
+    sec
+    sbc zi2
+    clc
+    adc cr
+    sta zr
+
+    dec iterations
+    bne loop
+
+bailout:
+    lda iterations
+    and #7
+    tax
+    lda palette, x
+    sta pixelcol
     rts
 .)
