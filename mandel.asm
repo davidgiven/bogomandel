@@ -27,6 +27,22 @@ xc:         .byte 0
 
 box:
 .(
+    ; The line drawing routines don't draw the last pixel, so do that
+    ; specially. (We need to probe one pixel anyway so it's no bad
+    ; thing.)
+    lda boxsize
+    lsr
+    clc
+    adc boxx
+    sta screenx
+    lda boxsize
+    clc
+    adc boxy
+    sta screeny
+    jsr calculate_screen_address
+    jsr calculate
+
+    ; Top stroke
     lda boxx
     sta screenx
     lda boxy
@@ -37,12 +53,14 @@ box:
     jsr calculate_screen_address
     jsr hline
 
+    ; Right stroke
     ; screenx, screeny preserved
     lda boxsize
     sta sidecount
     jsr calculate_screen_address
     jsr vline
 
+    ; Bottom stroke
     ; screeny preserved
     lda boxx
     sta screenx
@@ -52,30 +70,39 @@ box:
     jsr calculate_screen_address
     jsr hline
 
+    ; Left stroke
     lda boxx
     sta screenx
     lda boxy
+    inc
     sta screeny
     lda boxsize
+    dec
     sta sidecount
     jsr calculate_screen_address
     jsr vline
 
+exit:
+    rts
+
+calculate:
+    jsr pick
+    lsr pixelcol
+    lsr pixelcol
+    lsr pixelcol
+    lsr pixelcol
+    jsr plot
     rts
 
 hline:
-    lda palette+7
-    sta pixelcol
-    jsr plot
+    jsr calculate
     jsr go_to_pixel_right
     dec sidecount
     bne hline
     rts
 
 vline:
-    lda palette+7
-    sta pixelcol
-    jsr plot
+    jsr calculate
     jsr go_to_pixel_down
     dec sidecount
     bne vline
@@ -211,8 +238,8 @@ plot:
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
     lda screenx     ; Is this an even pixel?
-    and #1
-    beq even_pixel
+    ror             ; low bit to C
+    bcc even_pixel
 
     lsr pixelcol
     asl pixelmask
@@ -222,6 +249,23 @@ even_pixel:
     and pixelmask
     ora pixelcol
     sta (screenptr)
+    rts
+.)
+
+; Pick colour from screenx/screeny (calculate_screen_address must have been
+; called) into pixelcol.
+pick:
+.(
+    lda screenx
+    ror             ; low bit into carry
+    lda (screenptr)
+    ; Unshifted values refer to the *left* hand pixel, so odd pixels
+    ; need adjusting.
+    bcc even_pixel
+    asl
+even_pixel:
+    and #$aa
+    sta pixelcol
     rts
 .)
 
@@ -257,7 +301,7 @@ loop:
 setup_bytes:
     .byte 22, 2 ; mode 2
     .byte 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
-    .byte 19, 8, 4, 0, 0, 0 ; colour 8 = blue
+    .byte 19, 8, 4, 0, 0, 0 ; colour 4 = blue
     .byte 28, 0, 31, 15, 0 ; text window
     .byte 17, 128+8 ; set background colour
     .byte 12 ; clear window
