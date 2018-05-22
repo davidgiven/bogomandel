@@ -2,7 +2,7 @@ oswrch = $ffee
 romsel = $fe30
 romsel_ram = $f4
 
-ITERATIONS = 16
+ITERATIONS = 25
 BORDER = 38
 
 .zero
@@ -34,7 +34,7 @@ zi:         .byte 0
 zr:         .byte 0
 zi2:        .byte 0
 zr2:        .byte 0
-iterations: .byte 0
+zr2_plus_zi2: .byte 0
 
 #define PUSH(var) lda var : pha
 #define POP(var) pla : sta var
@@ -42,8 +42,6 @@ iterations: .byte 0
 .text
     * = $0e00
     jsr init_screen
-    jsr setup_unsigned_tables
-    jsr setup_signed_tables
 
     ; Draw left.
 
@@ -68,20 +66,8 @@ iterations: .byte 0
     sta boxy2
     jsr box
 
-    ; Put BASIC back in the ROM slot to avoid hilarity on exit.
 safeexit:
-    lda #12
-    sei
-    sta romsel
-    sta romsel_ram
-    cli
     rts
-
-lookup:
-    jsr map_multiplication
-    lda (mulptr)
-    sta $70
-    bra safeexit
 
 box:
 .(
@@ -248,6 +234,7 @@ too_small:
     POP(midx)
 
     rts
+.)
 
 calculate:
 .(
@@ -323,7 +310,6 @@ vline:
     dec sidecount
     bne vline
     rts
-.)
 
 ; Loads screenptr_top with the address of the pixel at screenx/screeny.
 calculate_screen_address:
@@ -596,152 +582,8 @@ setup_bytes:
 setup_bytes_end:
 .)
 
-; Points mulptr at the result of signed X*Y>>8.
-; Preserves X, Y.
-map_multiplication:
-    ; Set up RAM bank.
-    tya
-    rol
-    rol
-    rol
-    and #%00000011
-    clc
-    adc #4 ; RAM banks are in 4, 5, 6, 7
-    sei
-    sta romsel
-    sta romsel_ram
-    cli
-
-    tya
-    and #%00111111
-    ora #%10000000 ; add $80, the high byte of sideways RAM
-    sta mulptr+1
-    stx mulptr+0
-    rts
-    
-; Sets up the unsigned multiplication tables in sideway RAM. Abuses screenptr_top
-; for workspace.
-setup_unsigned_tables:
-.(
-    ldy #0
-yloop:
-    ldx #0
-    stz screenptr_top+0
-    stz screenptr_top+1
-xloop:
-    jsr map_multiplication
-
-    /* Load the multiplication result into A:temp. */
-    lda screenptr_top+0
-    sta temp
-    lda screenptr_top+1
-
-    /* Shift right by 6 for the fixed point adjustment. */
-    /* (Implemented as shifting left by 2 and taking the high byte. */
-
-    asl temp
-    rol
-    asl temp
-    rol
-    bmi overflow
-    sta (mulptr)
-
-    /* Add 8-bit Y to (screenptr_top). */
-    tya
-    clc
-    adc screenptr_top+0
-    sta screenptr_top+0
-    lda screenptr_top+1
-    adc #0
-    sta screenptr_top+1
-    bmi overflow
-
-nextx:
-    inx
-    cpx #$80
-    bne xloop
-nexty:
-    iny
-    cpy #$80
-    bne yloop
-    rts
-
-overflow:
-    lda #$7f
-    sta (mulptr)
-    bra nextx
-.)
-
-/* Once the unsigned tables have been generated, we can use this to fill in
- * the gaps for negative numbers.
- */
-setup_signed_tables:
-.(
-    ldy #0
-yloop:
-    ldx #0
-xloop:
-    phx
-    txa
-    eor #$ff
-    inc
-    sta screenx
-    plx
-
-    phy
-    tya
-    eor #$ff
-    inc
-    sta screeny
-    ply
-
-    jsr map_multiplication
-    lda (mulptr)
-
-    ; Positive result goes in negx, negy.
-
-    phx
-    ldx screenx
-    phy
-    ldy screeny
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    ply
-    plx
-
-    ; Everything else uses a negative result.
-
-    eor #$ff
-    inc
-
-    ; negx, posy.
-
-    phx
-    ldx screenx
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    plx
-
-    phy
-    ldy screeny
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    ply
-
-    inx
-    cpx #$80
-    bne xloop
-    iny
-    cpy #$80
-    bne yloop
-    rts
-.)
+table_of_squares:
+    .bin 0, 256, "table.dat"
 
 /* Actually do the work of calculating the colour of a pixel (in screenx, screeny). */
 mandel:
@@ -760,54 +602,58 @@ mandel:
     sta zi
     lda cr
     sta zr
-    lda #ITERATIONS
-    sta iterations
+    ldy #ITERATIONS
 
 loop:
     ldx zr
-    ldy zr
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    sta zr2
+    lda table_of_squares, x
+    bmi bailout
+    sta zr2 /* zr2 = zr*zr */
 
     ldx zi
-    ldy zi
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    sta zi2
+    lda table_of_squares, x
+    bmi bailout
+    sta zi2 /* zi2 = zi*zi */
 
-    ldx zr
-    ldy zi
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    
-    sta temp
     clc
-    adc temp
+    adc zr2 /* A = zr^2 + zi^2 */
+    bmi bailout
+    sta zr2_plus_zi2
+
     clc
-    adc ci
+    lda zr
+    adc zi
+    tax
+    lda table_of_squares, x /* A = (zr+zi)^2 */
+    bmi bailout
+
+    sec
+    sbc zr2_plus_zi2 /* A = (zr+zi)^2 - zr^2 - zi^2 = 2*zr*zi */
+    clc
+    adc ci /* A = 2*zr*zi + ci */
     sta zi
 
-    lda zr2
-    sec
-    sbc zi2
     clc
-    adc cr
+    lda cr
+    adc zr2
+    sec
+    sbc zi2 /* A = zr^2 + zi^2 + cr */
     sta zr
 
-    dec iterations
+    dey /* iteration count */
     bne loop
 
+    lda palette+0
+    sta pixelcol
+    rts
+
 bailout:
-    lda iterations
+    tya
     and #7
     tax
+    bne dont_inc_colour
+    inx
+dont_inc_colour:
     lda palette, x
     sta pixelcol
     rts
