@@ -2,8 +2,7 @@ oswrch = $ffee
 romsel = $fe30
 romsel_ram = $f4
 
-ITERATIONS = 16
-BORDER = 38
+ITERATIONS = 32
 
 .zero
 screenptr_top: .word 0
@@ -59,7 +58,6 @@ iterations: .byte 0
     sta boxy1
     lda #127
     sta boxx2
-    lda #127
     sta boxy2
     jsr box
 
@@ -258,10 +256,12 @@ calculate:
     bne dont_calculate
 
     jsr mandel
+    lda pixelcol
+    pha
     jsr plot
+    pla
 
 dont_calculate:
-    lda pixelcol
     sec
     sbc corecolour
     ora colourflag
@@ -616,8 +616,6 @@ x_not_negative:
     rol
     asl cr+0            /* and again */
     rol
-    asl cr+0            /* and again */
-    rol
     and #$3f            /* fixup the high byte to be an address */
     ora #$80
     sta cr+1
@@ -635,8 +633,6 @@ y_not_negative:
     asl                 /* the number in ci+1:A is now -1..1, so double */
     sta ci+0
     lda ci+1
-    rol
-    asl ci+0            /* and again */
     rol
     asl ci+0            /* and again */
     rol
