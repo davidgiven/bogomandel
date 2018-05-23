@@ -26,14 +26,15 @@ sidecount:  .byte 0
 corecolour: .byte 0
 colourflag: .byte 0
 
-mulptr:     .word 0
-
-ci:         .byte 0
-cr:         .byte 0
-zi:         .byte 0
-zr:         .byte 0
-zi2:        .byte 0
-zr2:        .byte 0
+ci:         .word 0
+cr:         .word 0
+zi:         .word 0
+zr:         .word 0
+zi2:        .word 0
+zr2:        .word 0
+zr_p_zi:    .word 0
+zr2_p_zi2:  .word 0
+zr2_m_zi2:  .word 0
 iterations: .byte 0
 
 #define PUSH(var) lda var : pha
@@ -42,12 +43,18 @@ iterations: .byte 0
 .text
     * = $0e00
     jsr init_screen
-    jsr setup_unsigned_tables
-    jsr setup_signed_tables
+
+    /* Map sideways RAM bank 4, containing our lookup table. */
+
+    lda #4
+    sei
+    sta romsel
+    sta romsel_ram
+    cli
 
     ; Draw left.
 
-    lda #BORDER
+    lda #0
     sta boxx1
     sta boxy1
     lda #127
@@ -60,9 +67,9 @@ iterations: .byte 0
 
     lda #128
     sta boxx1
-    lda #BORDER
+    lda #0
     sta boxy1
-    lda #255-BORDER
+    lda #255
     sta boxx2
     lda #127
     sta boxy2
@@ -76,12 +83,6 @@ safeexit:
     sta romsel_ram
     cli
     rts
-
-lookup:
-    jsr map_multiplication
-    lda (mulptr)
-    sta $70
-    bra safeexit
 
 box:
 .(
@@ -596,210 +597,139 @@ setup_bytes:
 setup_bytes_end:
 .)
 
-; Points mulptr at the result of signed X*Y>>8.
-; Preserves X, Y.
-map_multiplication:
-    ; Set up RAM bank.
-    tya
-    rol
-    rol
-    rol
-    and #%00000011
-    clc
-    adc #4 ; RAM banks are in 4, 5, 6, 7
-    sei
-    sta romsel
-    sta romsel_ram
-    cli
-
-    tya
-    and #%00111111
-    ora #%10000000 ; add $80, the high byte of sideways RAM
-    sta mulptr+1
-    stx mulptr+0
-    rts
-    
-; Sets up the unsigned multiplication tables in sideway RAM. Abuses screenptr_top
-; for workspace.
-setup_unsigned_tables:
-.(
-    ldy #0
-yloop:
-    ldx #0
-    stz screenptr_top+0
-    stz screenptr_top+1
-xloop:
-    jsr map_multiplication
-
-    /* Load the multiplication result into A:temp. */
-    lda screenptr_top+0
-    sta temp
-    lda screenptr_top+1
-
-    /* Shift right by 6 for the fixed point adjustment. */
-    /* (Implemented as shifting left by 2 and taking the high byte. */
-
-    asl temp
-    rol
-    asl temp
-    rol
-    bmi overflow
-    sta (mulptr)
-
-    /* Add 8-bit Y to (screenptr_top). */
-    tya
-    clc
-    adc screenptr_top+0
-    sta screenptr_top+0
-    lda screenptr_top+1
-    adc #0
-    sta screenptr_top+1
-    bmi overflow
-
-nextx:
-    inx
-    cpx #$80
-    bne xloop
-nexty:
-    iny
-    cpy #$80
-    bne yloop
-    rts
-
-overflow:
-    lda #$7f
-    sta (mulptr)
-    bra nextx
-.)
-
-/* Once the unsigned tables have been generated, we can use this to fill in
- * the gaps for negative numbers.
- */
-setup_signed_tables:
-.(
-    ldy #0
-yloop:
-    ldx #0
-xloop:
-    phx
-    txa
-    eor #$ff
-    inc
-    sta screenx
-    plx
-
-    phy
-    tya
-    eor #$ff
-    inc
-    sta screeny
-    ply
-
-    jsr map_multiplication
-    lda (mulptr)
-
-    ; Positive result goes in negx, negy.
-
-    phx
-    ldx screenx
-    phy
-    ldy screeny
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    ply
-    plx
-
-    ; Everything else uses a negative result.
-
-    eor #$ff
-    inc
-
-    ; negx, posy.
-
-    phx
-    ldx screenx
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    plx
-
-    phy
-    ldy screeny
-    pha
-    jsr map_multiplication
-    pla
-    sta (mulptr)
-    ply
-
-    inx
-    cpx #$80
-    bne xloop
-    iny
-    cpy #$80
-    bne yloop
-    rts
-.)
-
 /* Actually do the work of calculating the colour of a pixel (in screenx, screeny). */
 mandel:
 .(
-    lda screeny
-    clc
-    adc #$80
-    sta ci
+    /* Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2). */
 
+sei
+    stz cr+1
     lda screenx
     clc
-    adc #$80
-    sta cr
+    adc #$80            /* adjust midpoint */
+    bpl x_not_negative
+    dec cr+1            /* if negative, sign extend high byte */
+x_not_negative:
+    asl                 /* the number in cr+1:A is now -0.5..0.5, so double */
+    sta cr+0
+    lda cr+1
+    rol
+    asl cr+0            /* and again */
+    rol
+    asl cr+0            /* and again */
+    rol
+    and #$3f            /* fixup the high byte to be an address */
+    ora #$80
+    sta cr+1
+    sta zr+1
+    lda cr+0
+    sta zr+0
 
-    lda ci
-    sta zi
-    lda cr
-    sta zr
+    stz ci+1
+    lda screeny
+    clc
+    adc #$80            /* adjust midpoint */
+    bpl y_not_negative
+    dec ci+1            /* if negative, sign extend high byte */
+y_not_negative:
+    asl                 /* the number in ci+1:A is now -1..1, so double */
+    sta ci+0
+    lda ci+1
+    rol
+    asl ci+0            /* and again */
+    rol
+    asl ci+0            /* and again */
+    rol
+    and #$3f            /* fixup the high byte to be an address */
+    ora #$80
+    sta ci+1
+    sta zi+1
+    lda ci+0
+    sta zi+0
+
+    /* Now we go into reenigne's Mandelbrot kernel. */
+
     lda #ITERATIONS
     sta iterations
-
+    ldy #1              /* indexing with this accesses the high byte */
 loop:
-    ldx zr
-    ldy zr
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    sta zr2
+    /* Calculate zr^2 + zi^2. */
 
-    ldx zi
-    ldy zi
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    sta zi2
-
-    ldx zr
-    ldy zi
-    jsr map_multiplication
-    lda (mulptr)
-    cmp #$7f
-    beq bailout
-    
-    sta temp
     clc
-    adc temp
-    clc
-    adc ci
-    sta zi
+    lda (zr)            /* A = low(zr^2) */
+    tax                 
+    adc (zi)            /* A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) */
+    sta zr2_p_zi2+0
+    lda (zr), y         /* A = high(zr^2) */
+    adc (zi), y         /* A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) */
+    sta zr2_p_zi2+1
 
-    lda zr2
+    /* Test for bailout: (zr^2 + zi^2) < 4. */
+
+    asl
+    asl                 /* put sign bit at top */
     sec
-    sbc zi2
+    sbc #$20            /* test bailout: $2000>>2 = $0800 = 4.0 */
+    bvc no_signed_adjustment
+    eor #$80
+no_signed_adjustment:
+    bpl bailout
+    
+    /* Calculate zr + zi. */
+
     clc
-    adc cr
-    sta zr
+    lda zr+0            /* A = low(zr) */
+    adc zi+0            /* A = low(zr + zi) */
+    sta zr_p_zi+0
+    lda zr+1            /* A = high(zr) */
+    adc zi+1            /* A = high(zr + zi) + C */
+    and #$3f
+    ora #$80            /* fixup */
+    sta zr_p_zi+1
+
+    /* Calculate zr^2 - zi^2. */
+
+    txa                 /* A = low(zr^2) */
+    sec
+    sbc (zi)            /* A = low(zr^2 - zi^2) */
+    sta zr2_m_zi2+0
+    lda (zr), y         /* A = high(zr^2) */
+    sbc (zi), y         /* A = high(zr^2 - zi^2) */
+    sta zr2_m_zi2+1
+
+    /* Calculate zr = (zr^2 - zi^2) + cr. */
+
+    clc
+    lda zr2_m_zi2+0     /* A = low(zr^2 - zi^2) */
+    adc cr+0            /* A = low(zr^2 - zi^2 + cr) */
+    sta zr+0
+    lda zr2_m_zi2+1     /* A = high(zr^2 - zi^2) */
+    adc cr+1            /* A = high(zr^2 - zi^2 + cr) */
+    and #$3f
+    ora #$80            /* fixup */
+    sta zr+1
+
+    /* Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). */
+
+    sec
+    lda (zr_p_zi)       /* A = low((zr + zi)^2) */
+    sbc zr2_p_zi2+0     /* A = low((zr + zi)^2 - (zr^2 + zi^2)) */
+    sta zi+0            /* not really, temp storage */
+    lda (zr_p_zi), y    /* A = high((zr + zi)^2) */
+    sbc zr2_p_zi2+1     /* A = high((zr + zi)^2 - (zr^2 + zi^2)) */
+    sta zi+1            /* not really, temp storage */
+
+    /* Calculate zi = zi' + ci. */
+
+    clc
+    lda zi+0
+    adc ci+0
+    sta zi+0
+    lda zi+1
+    adc ci+1
+    and #$3f
+    ora #$80            /* fixup */
+    sta zi+1
 
     dec iterations
     bne loop
@@ -810,5 +740,6 @@ bailout:
     tax
     lda palette, x
     sta pixelcol
+cli
     rts
 .)
