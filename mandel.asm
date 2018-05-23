@@ -257,10 +257,12 @@ calculate:
     bne dont_calculate
 
     jsr mandel
+    lda pixelcol
+    pha
     jsr plot
+    pla
 
 dont_calculate:
-    lda pixelcol
     sec
     sbc corecolour
     ora colourflag
