@@ -25,15 +25,11 @@ sidecount:  .byte 0
 corecolour: .byte 0
 colourflag: .byte 0
 
-ci:         .word 0
-cr:         .word 0
 zi:         .word 0
 zr:         .word 0
 zi2:        .word 0
 zr2:        .word 0
 zr_p_zi:    .word 0
-zr2_p_zi2:  .word 0
-zr2_m_zi2:  .word 0
 iterations: .byte 0
 
 #define PUSH(var) lda var : pha
@@ -602,64 +598,65 @@ mandel:
 .(
     /* Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2). */
 
-    stz cr+1
+    stz cr_hi
     lda screenx
     clc
     adc #$80            /* adjust midpoint */
     bpl x_not_negative
-    dec cr+1            /* if negative, sign extend high byte */
+    dec cr_hi           /* if negative, sign extend high byte */
 x_not_negative:
     asl                 /* the number in cr+1:A is now -0.5..0.5, so double */
-    sta cr+0
-    lda cr+1
+    sta cr_lo
+    lda cr_hi
     rol
-    asl cr+0            /* and again */
+    asl cr_lo           /* and again */
     rol
     and #$3f            /* fixup the high byte to be an address */
     ora #$80
-    sta cr+1
+    sta cr_hi
     sta zr+1
-    lda cr+0
+    lda cr_lo
     sta zr+0
 
-    stz ci+1
+    stz ci_hi
     lda screeny
     clc
     adc #$80            /* adjust midpoint */
     bpl y_not_negative
-    dec ci+1            /* if negative, sign extend high byte */
+    dec ci_hi           /* if negative, sign extend high byte */
 y_not_negative:
     asl                 /* the number in ci+1:A is now -1..1, so double */
-    sta ci+0
-    lda ci+1
+    sta ci_lo
+    lda ci_hi
     rol
-    asl ci+0            /* and again */
+    asl ci_lo            /* and again */
     rol
     and #$3f            /* fixup the high byte to be an address */
     ora #$80
-    sta ci+1
+    sta ci_hi
     sta zi+1
-    lda ci+0
+    lda ci_lo
     sta zi+0
 
     /* Now we go into reenigne's Mandelbrot kernel. */
 
     lda #ITERATIONS
     sta iterations
-    ldy #1              /* indexing with this accesses the high byte */
 loop:
+    ldy #1              /* indexing with this accesses the high byte */
+
     /* Calculate zr^2 + zi^2. */
 
     clc
     lda (zr)            /* A = low(zr^2) */
     tax                 
     adc (zi)            /* A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) */
-    sta zr2_p_zi2+0
+    sta zr2_p_zi2_lo
     lda (zr), y         /* A = high(zr^2) */
     adc (zi), y         /* A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) */
     cmp #$08            /* $0800 = 4.0 */
     bcs bailout
-    sta zr2_p_zi2+1
+    sta zr2_p_zi2_hi
 
     /* Calculate zr + zi. */
 
@@ -678,19 +675,23 @@ loop:
     txa                 /* A = low(zr^2) */
     sec
     sbc (zi)            /* A = low(zr^2 - zi^2) */
-    sta zr2_m_zi2+0
+    sta zr2_m_zi2_lo
     lda (zr), y         /* A = high(zr^2) */
     sbc (zi), y         /* A = high(zr^2 - zi^2) */
-    sta zr2_m_zi2+1
+    sta zr2_m_zi2_hi
 
     /* Calculate zr = (zr^2 - zi^2) + cr. */
 
     clc
-    lda zr2_m_zi2+0     /* A = low(zr^2 - zi^2) */
-    adc cr+0            /* A = low(zr^2 - zi^2 + cr) */
+zr2_m_zi2_lo = * + 1
+    lda #99             /* A = low(zr^2 - zi^2) */
+cr_lo = * + 1
+    adc #99             /* A = low(zr^2 - zi^2 + cr) */
     sta zr+0
-    lda zr2_m_zi2+1     /* A = high(zr^2 - zi^2) */
-    adc cr+1            /* A = high(zr^2 - zi^2 + cr) */
+zr2_m_zi2_hi = * + 1
+    lda #99             /* A = high(zr^2 - zi^2) */
+cr_hi = * + 1
+    adc #99             /* A = high(zr^2 - zi^2 + cr) */
     and #$3f
     ora #$80            /* fixup */
     sta zr+1
@@ -699,20 +700,24 @@ loop:
 
     sec
     lda (zr_p_zi)       /* A = low((zr + zi)^2) */
-    sbc zr2_p_zi2+0     /* A = low((zr + zi)^2 - (zr^2 + zi^2)) */
-    sta zi+0            /* not really, temp storage */
+zr2_p_zi2_lo = * + 1
+    sbc #99             /* A = low((zr + zi)^2 - (zr^2 + zi^2)) */
+    tax
     lda (zr_p_zi), y    /* A = high((zr + zi)^2) */
-    sbc zr2_p_zi2+1     /* A = high((zr + zi)^2 - (zr^2 + zi^2)) */
-    sta zi+1            /* not really, temp storage */
+zr2_p_zi2_hi = * + 1
+    sbc #99             /* A = high((zr + zi)^2 - (zr^2 + zi^2)) */
+    tay
 
     /* Calculate zi = zi' + ci. */
 
     clc
-    lda zi+0
-    adc ci+0
+    txa
+ci_lo = * + 1
+    adc #99
     sta zi+0
-    lda zi+1
-    adc ci+1
+    tya
+ci_hi = * + 1
+    adc #99
     and #$3f
     ora #$80            /* fixup */
     sta zi+1
