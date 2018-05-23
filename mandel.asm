@@ -54,6 +54,7 @@ iterations: .byte 0
     sta boxy1
     lda #127
     sta boxx2
+    lda #127
     sta boxy2
     jsr box
 
@@ -598,19 +599,22 @@ mandel:
 .(
     /* Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2). */
 
-    stz cr_hi
+    
     lda screenx
+    ldx #0
     clc
     adc #$80            /* adjust midpoint */
     bpl x_not_negative
-    dec cr_hi           /* if negative, sign extend high byte */
+    dex                 /* if negative, sign extend high byte */
 x_not_negative:
     asl                 /* the number in cr+1:A is now -0.5..0.5, so double */
     sta cr_lo
-    lda cr_hi
+    txa      
     rol
     asl cr_lo           /* and again */
     rol
+    clc
+    adc #$00            /* X offset */
     and #$3f            /* fixup the high byte to be an address */
     ora #$80
     sta cr_hi
@@ -618,19 +622,21 @@ x_not_negative:
     lda cr_lo
     sta zr+0
 
-    stz ci_hi
+    ldx #0
     lda screeny
     clc
     adc #$80            /* adjust midpoint */
     bpl y_not_negative
-    dec ci_hi           /* if negative, sign extend high byte */
+    dex                 /* if negative, sign extend high byte */
 y_not_negative:
     asl                 /* the number in ci+1:A is now -1..1, so double */
     sta ci_lo
-    lda ci_hi
+    txa      
     rol
-    asl ci_lo            /* and again */
+    asl ci_lo           /* and again */
     rol
+    clc
+    adc #$00            /* Y offset */
     and #$3f            /* fixup the high byte to be an address */
     ora #$80
     sta ci_hi
