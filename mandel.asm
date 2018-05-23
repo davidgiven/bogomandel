@@ -602,7 +602,6 @@ mandel:
 .(
     /* Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2). */
 
-sei
     stz cr+1
     lda screenx
     clc
@@ -658,19 +657,10 @@ loop:
     sta zr2_p_zi2+0
     lda (zr), y         /* A = high(zr^2) */
     adc (zi), y         /* A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) */
+    cmp #$08            /* $0800 = 4.0 */
+    bcs bailout
     sta zr2_p_zi2+1
 
-    /* Test for bailout: (zr^2 + zi^2) < 4. */
-
-    asl
-    asl                 /* put sign bit at top */
-    sec
-    sbc #$20            /* test bailout: $2000>>2 = $0800 = 4.0 */
-    bvc no_signed_adjustment
-    eor #$80
-no_signed_adjustment:
-    bpl bailout
-    
     /* Calculate zr + zi. */
 
     clc
@@ -736,6 +726,5 @@ bailout:
     tax
     lda palette, x
     sta pixelcol
-cli
     rts
 .)
