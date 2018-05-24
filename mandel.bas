@@ -1,3 +1,16 @@
+ITERATIONS = 32
+
+top = 1
+left = -1
+right = 1
+bottom = -1
+
+width = right - left
+height = bottom - top
+xstep = width / 256
+ystep = height / 256
+
+fixedmul = 2^9
 
 HIMEM = &7000
 program_buffer = &7000
@@ -13,8 +26,6 @@ oswrch     = &FFEE
 romsel     = &FE30
 romsel_ram = &F4
 run_location = &E00
-
-ITERATIONS = 32
 
 PRINT "pass 1": PROCassemble(4)
 PRINT "pass 2": PROCassemble(6)
@@ -373,28 +384,19 @@ program_start = O%
 
 \ Loads screenptr with the address of the pixel at screenx/screeny.
 .calculate_screen_address
-    ldx screeny
-    lda row_table_lo, X
-    sta screenptr+0
-    lda row_table_hi, X
-    sta screenptr+1
-
-    \ Calculate the X offset (into pixelmask/A)
-    lda screenx     \ remember these are logical pixels (0..255)
-    and #&FC        \ mask to char column
-    stz pixelmask   \ reuse this as high byte of X offset
-    asl A           \ *2
-    rol pixelmask
-    
-    \ Add on the X offset.
-    \ C is already clear
+    lda screenx
+    lsr A \ to physical pixels
+    lsr A \ to pixels/2
     tax
-    adc screenptr+0
+
+    ldy screeny
+    clc
+    lda row_table_lo, Y
+    adc col_table_lo, X
     sta screenptr+0
-    lda screenptr+1
-    adc pixelmask
+    lda row_table_hi, Y
+    adc col_table_hi, X
     sta screenptr+1
-    txa
 
     rts
 
@@ -544,6 +546,60 @@ FOR Y%=0 TO 255
     ]
 NEXT
 
+[OPT pass
+\ The column lookup tables; maps physical pixels/2 to scanline offsets.
+.col_table_lo
+]
+FOR X%=0 TO 255 STEP 2
+    [OPT pass
+        equb (X% * 4) MOD 256
+    ]
+NEXT
+[OPT pass
+.col_table_hi
+]
+FOR X%=0 TO 255 STEP 2
+    [OPT pass
+        equb (X% * 4) DIV 256
+    ]
+NEXT
+
+[OPT pass
+\ Maps logical X pixels/2 to fixed-point reals.
+.pixels_to_reals_lo
+]
+FOR X%=0 TO 255 STEP 2
+    [OPT pass
+        equb FNtofixed(X%*xstep + left) MOD 256
+    ]
+NEXT
+[OPT pass
+.pixels_to_reals_hi
+]
+FOR X%=0 TO 255 STEP 2
+    [OPT pass
+        equb FNtofixed(X%*xstep + left) DIV 256
+    ]
+NEXT
+
+[OPT pass
+\ Maps logical Y pixels to fixed-point imaginaries.
+.pixels_to_imaginary_lo
+]
+FOR Y%=0 TO 255
+    [OPT pass
+        equb FNtofixed(Y%*ystep + top) MOD 256
+    ]
+NEXT
+[OPT pass
+.pixels_to_imaginary_hi
+]
+FOR Y%=0 TO 255
+    [OPT pass
+        equb FNtofixed(Y%*ystep + top) DIV 256
+    ]
+NEXT
+
 kernel_start = O%
 [OPT pass
 \ Actually do the work of calculating the colour of a pixel (in screenx, screeny).
@@ -551,48 +607,43 @@ kernel_start = O%
     \ Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2).
 
     lda screenx
-    ldx #0
-    clc
-    adc #&80            \ adjust midpoint 
-    bpl x_not_negative
-    dex                 \ if negative, sign extend high byte 
-.x_not_negative
-    asl A               \ the number in cr+1.A is now -0.5..0.5, so double 
+    lsr A
+    tax
+    lda pixels_to_reals_lo, X
     sta cr_lo
-    txa      
-    rol A
-    asl cr_lo           \ and again 
-    rol A
-    clc
-    adc #&00            \ X offset 
-    and #&3F            \ fixup the high byte to be an address 
-    ora #&80
+    sta zr+0
+    lda pixels_to_reals_hi, X
     sta cr_hi
     sta zr+1
-    lda cr_lo
-    sta zr+0
 
-    ldx #0
-    lda screeny
-    clc
-    adc #&80            \ adjust midpoint 
-    bpl y_not_negative
-    dex                 \ if negative, sign extend high byte 
-.y_not_negative
-    asl A               \ the number in ci+1.A is now -1..1, so double 
+    ldy screeny
+    lda pixels_to_imaginary_lo, Y
     sta ci_lo
-    txa      
-    rol A
-    asl ci_lo           \ and again 
-    rol A
-    clc
-    adc #&00            \ Y offset 
-    and #&3F            \ fixup the high byte to be an address 
-    ora #&80
+    sta zi+0
+    lda pixels_to_imaginary_hi, Y
     sta ci_hi
     sta zi+1
-    lda ci_lo
-    sta zi+0
+\    ldx #0
+\    lda screeny
+\    clc
+\    adc #&80            \ adjust midpoint 
+\    bpl y_not_negative
+\    dex                 \ if negative, sign extend high byte 
+\.y_not_negative
+\    asl A               \ the number in ci+1.A is now -1..1, so double 
+\    sta ci_lo
+\    txa      
+\    rol A
+\    asl ci_lo           \ and again 
+\    rol A
+\    clc
+\    adc #&00            \ Y offset 
+\    and #&3F            \ fixup the high byte to be an address 
+\    ora #&80
+\    sta ci_hi
+\    sta zi+1
+\    lda ci_lo
+\    sta zi+0
 
     \ Now we go into reenigne's Mandelbrot kernel. 
 
@@ -695,3 +746,5 @@ program_size = program_end - program_start
 kernel_size = kernel_end - kernel_start
 
 ENDPROC
+
+DEF FNtofixed(f) = (f * fixedmul) AND &3FFF OR &8000
