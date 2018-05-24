@@ -1,1 +1,1 @@
-*basic*load mandel e00*srload table 8000 4TIME=0:CALL &E00:PRINT ;TIME/100'"secs"
+*basicMODE 131*srload table 8000 4*load mandel e02*basic @RUN
