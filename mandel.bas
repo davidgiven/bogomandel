@@ -20,7 +20,7 @@ program_end = 0
 program_size = 0
 kernel_start = 0
 kernel_end = 0
-kernel_size = 0
+kernel_size = 1
 
 oswrch     = &FFEE
 romsel     = &FE30
@@ -41,7 +41,7 @@ INPUT '"Press RETURN to start"; A$
 END
 
 DEF PROCassemble(pass)
-P% = &70
+P% = &72
 O% = program_buffer
 [OPT pass
 .screenptr  equw 0
@@ -62,13 +62,6 @@ O% = program_buffer
 
 .corecolour     equb 0
 .colourflag     equb 0
-
-.zi             equw 0
-.zr             equw 0
-.zi2            equw 0
-.zr2            equw 0
-.zr_p_zi        equw 0
-.iterations     equb 0
 ]
 
 P% = program_buffer
@@ -90,6 +83,15 @@ NEXT
 [OPT pass
     inx
     bne copy_program_loop
+
+    \ Copy the kernel.
+
+    ldx #kernel_size-1
+.copy_kernel_loop
+    lda kernel_start, X
+    sta mandel, X
+    dex
+    bpl copy_kernel_loop
 
     \ And go.
     jmp run_location
@@ -311,6 +313,26 @@ program_start = O%
     lda pixelcol
     cmp #&80
     bne dont_calculate
+
+    \ Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2).
+
+    lda screenx
+    lsr A
+    tax
+    lda pixels_to_reals_lo, X
+    sta cr_lo
+    sta zr+0
+    lda pixels_to_reals_hi, X
+    sta cr_hi
+    sta zr+1
+
+    ldy screeny
+    lda pixels_to_imaginary_lo, Y
+    sta ci_lo
+    sta zi+0
+    lda pixels_to_imaginary_hi, Y
+    sta ci_hi
+    sta zi+1
 
     jsr mandel
     lda pixelcol
@@ -599,54 +621,14 @@ FOR Y%=0 TO 255
         equb FNtofixed(Y%*ystep + top) DIV 256
     ]
 NEXT
+program_end = O%
 
 kernel_start = O%
+P% = 0
 [OPT pass
-\ Actually do the work of calculating the colour of a pixel (in screenx, screeny).
+\ Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
+\ calculate the colour.
 .mandel
-    \ Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2).
-
-    lda screenx
-    lsr A
-    tax
-    lda pixels_to_reals_lo, X
-    sta cr_lo
-    sta zr+0
-    lda pixels_to_reals_hi, X
-    sta cr_hi
-    sta zr+1
-
-    ldy screeny
-    lda pixels_to_imaginary_lo, Y
-    sta ci_lo
-    sta zi+0
-    lda pixels_to_imaginary_hi, Y
-    sta ci_hi
-    sta zi+1
-\    ldx #0
-\    lda screeny
-\    clc
-\    adc #&80            \ adjust midpoint 
-\    bpl y_not_negative
-\    dex                 \ if negative, sign extend high byte 
-\.y_not_negative
-\    asl A               \ the number in ci+1.A is now -1..1, so double 
-\    sta ci_lo
-\    txa      
-\    rol A
-\    asl ci_lo           \ and again 
-\    rol A
-\    clc
-\    adc #&00            \ Y offset 
-\    and #&3F            \ fixup the high byte to be an address 
-\    ora #&80
-\    sta ci_hi
-\    sta zi+1
-\    lda ci_lo
-\    sta zi+0
-
-    \ Now we go into reenigne's Mandelbrot kernel. 
-
     lda #ITERATIONS
     sta iterations
 .iterator_loop
@@ -655,9 +637,11 @@ kernel_start = O%
     \ Calculate zr^2 + zi^2. 
 
     clc
-    lda (zr)            \ A = low(zr^2) 
+]: zr = P%+1: [OPT pass
+    lda &9999           \ A = low(zr^2) 
     tax                 
-    adc (zi)            \ A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
+]: zi = P%+1: [OPT pass
+    adc &9999           \ A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
     sta zr2_p_zi2_lo
     lda (zr), y         \ A = high(zr^2) 
     adc (zi), y         \ A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
@@ -682,7 +666,7 @@ kernel_start = O%
     txa                 \ A = low(zr^2) 
     sec
     sbc (zi)            \ A = low(zr^2 - zi^2) 
-    sta zr2_m_zi2_lo
+    tax
     lda (zr), y         \ A = high(zr^2) 
     sbc (zi), y         \ A = high(zr^2 - zi^2) 
     sta zr2_m_zi2_hi
@@ -690,8 +674,7 @@ kernel_start = O%
     \ Calculate zr = (zr^2 - zi^2) + cr. 
 
     clc
-]: zr2_m_zi2_lo = P%+1: [OPT pass
-    lda #99             \ A = low(zr^2 - zi^2) 
+    txa
 ]: cr_lo        = P%+1: [OPT pass
     adc #99             \ A = low(zr^2 - zi^2 + cr) 
     sta zr+0
@@ -706,7 +689,8 @@ kernel_start = O%
     \ Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
 
     sec
-    lda (zr_p_zi)       \ A = low((zr + zi)^2) 
+]: zr_p_zi = P%+1: [OPT pass
+    lda &9999           \ A = low((zr + zi)^2) 
 ]: zr2_p_zi2_lo = P%+1: [OPT pass
     sbc #99             \ A = low((zr + zi)^2 - (zr^2 + zi^2)) 
     tax
@@ -733,7 +717,8 @@ kernel_start = O%
     bne iterator_loop
 
 .bailout
-    lda iterations
+]: iterations   = P%+1: [OPT pass
+    lda #99
     and #7
     tax
     lda palette, X
@@ -741,7 +726,6 @@ kernel_start = O%
     rts
 ]
 kernel_end = O%
-program_end = O%
 program_size = program_end - program_start
 kernel_size = kernel_end - kernel_start
 
