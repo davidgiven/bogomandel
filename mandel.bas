@@ -33,8 +33,7 @@ DEF PROCassemble(pass)
 P% = &70
 O% = program_buffer
 [OPT pass
-.screenptr_top  equw 0
-.screenptr_bot  equw 0
+.screenptr  equw 0
 .screenx        equb 0
 .screeny        equb 0
 
@@ -103,26 +102,14 @@ program_start = O%
     lda #4
     jsr map_rom
 
-    \ Draw left.
+    \ Draw.
 
     lda #0
     sta boxx1
-    sta boxy1
-    lda #127
-    sta boxx2
-    lda #127
-    sta boxy2
-    jsr box
-
-    \ Draw right.
-
-    lda #128
-    sta boxx1
-    lda #0
     sta boxy1
     lda #255
     sta boxx2
-    lda #127
+    lda #255
     sta boxy2
     jsr box
 
@@ -384,24 +371,13 @@ program_start = O%
     rts
 
 
-\ Loads screenptr_top with the address of the pixel at screenx/screeny.
+\ Loads screenptr with the address of the pixel at screenx/screeny.
 .calculate_screen_address
     ldx screeny
     lda row_table_lo, X
-    sta screenptr_top+0
+    sta screenptr+0
     lda row_table_hi, X
-    sta screenptr_top+1
-
-    \ Flip for the bottom half.
-
-]: flipaddr = 7 + &3000 + &8000 - 640: [OPT pass
-    lda #flipaddr MOD 256
-    sec
-    sbc screenptr_top+0
-    sta screenptr_bot+0
-    lda #flipaddr DIV 256
-    sbc screenptr_top+1
-    sta screenptr_bot+1
+    sta screenptr+1
 
     \ Calculate the X offset (into pixelmask/A)
     lda screenx     \ remember these are logical pixels (0..255)
@@ -413,24 +389,17 @@ program_start = O%
     \ Add on the X offset.
     \ C is already clear
     tax
-    adc screenptr_top+0
-    sta screenptr_top+0
-    lda screenptr_top+1
+    adc screenptr+0
+    sta screenptr+0
+    lda screenptr+1
     adc pixelmask
-    sta screenptr_top+1
+    sta screenptr+1
     txa
-
-    clc
-    adc screenptr_bot+0
-    sta screenptr_bot+0
-    lda screenptr_bot+1
-    adc pixelmask
-    sta screenptr_bot+1
 
     rts
 
 
-\ Given a calculated screenptr_top, moves to the next horizontal physical pixel
+\ Given a calculated screenptr, moves to the next horizontal physical pixel
 \ (which is two logical pixels because MODE 2).
 .go_to_pixel_right
     lda screenx
@@ -441,39 +410,23 @@ program_start = O%
     bne go_to_pixel_right_exit
 
     clc
-    lda screenptr_bot+0
+    lda screenptr+0
     adc #8
-    sta screenptr_bot+0
-    bcc dont_add_screenptr_bot
-    inc screenptr_bot+1
-.dont_add_screenptr_bot
-
-    clc
-    lda screenptr_top+0
-    adc #8
-    sta screenptr_top+0
-    bcc dont_add_screenptr_top
-    inc screenptr_top+1
-.dont_add_screenptr_top
+    sta screenptr+0
+    bcc dont_add_screenptr
+    inc screenptr+1
+.dont_add_screenptr
 
 .go_to_pixel_right_exit
     rts
 
 
-\ Given a calculated screenptr_top, moves to the next vertical pixel.
+\ Given a calculated screenptr, moves to the next vertical pixel.
 .go_to_pixel_down:
-    inc screenptr_top+0
-    bne dont_increment_screenptr_top
-    inc screenptr_top+1
-.dont_increment_screenptr_top
-
-    lda screenptr_bot+0
-    dec A
-    sta screenptr_bot+0
-    cmp #&FF
-    bne dont_decrement_screenptr_bot
-    dec screenptr_bot+1
-.dont_decrement_screenptr_bot
+    inc screenptr+0
+    bne dont_increment_screenptr
+    inc screenptr+1
+.dont_increment_screenptr
 
     lda screeny
     inc A
@@ -483,20 +436,12 @@ program_start = O%
 
 ]: rowsize = 640 - 8: [OPT pass
     clc
-    lda screenptr_top+0
+    lda screenptr+0
     adc #rowsize MOD 256
-    sta screenptr_top+0
-    lda screenptr_top+1
+    sta screenptr+0
+    lda screenptr+1
     adc #rowsize DIV 256
-    sta screenptr_top+1
-
-    sec
-    lda screenptr_bot+0
-    sbc #rowsize MOD 256
-    sta screenptr_bot+0
-    lda screenptr_bot+1
-    sbc #rowsize DIV 256
-    sta screenptr_bot+1
+    sta screenptr+1
 
 .go_to_pixel_down_exit
     rts
@@ -519,11 +464,10 @@ program_start = O%
     asl pixelmask
 
 .plot_even_pixel
-    lda (screenptr_top)
+    lda (screenptr)
     and pixelmask
     ora pixelcol
-    sta (screenptr_top)
-    sta (screenptr_bot)
+    sta (screenptr)
     rts
 
 
@@ -533,7 +477,7 @@ program_start = O%
     lda screenx
     ror A
     ror A \ odd/even bit to C
-    lda (screenptr_top)
+    lda (screenptr)
     \ Unshifted values refer to the *left* hand pixel, so odd pixels
     \ need adjusting.
     bcc pick_even_pixel
