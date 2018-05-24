@@ -228,7 +228,7 @@ program_start = O%
     lsr A
     clc
     adc temp
-    and #&FE | round down
+    and #&FE \ round down
     sta midx
     cmp boxx1
     beq box_too_small
@@ -386,18 +386,10 @@ program_start = O%
 
 \ Loads screenptr_top with the address of the pixel at screenx/screeny.
 .calculate_screen_address
-    lda screeny
-    and #&F8            \ mask into char rows (0, 8, 16...)
-    lsr A
-    lsr A               \ twice the row number (0, 2, 4...)
-    tax
-
-    \ Top half.
-
-    lda row_table+0, X
+    ldx screeny
+    lda row_table_lo, X
     sta screenptr_top+0
-    lda row_table+1, X
-    adc #0
+    lda row_table_hi, X
     sta screenptr_top+1
 
     \ Flip for the bottom half.
@@ -433,27 +425,6 @@ program_start = O%
     sta screenptr_bot+0
     lda screenptr_bot+1
     adc pixelmask
-    sta screenptr_bot+1
-
-    \ Now adjust for the interchar row. */
-
-    lda screeny
-    and #&07            \ interchar row
-    sta pixelmask
-
-    clc
-    adc screenptr_top+0
-    sta screenptr_top+0
-    lda screenptr_top+1
-    adc #0
-    sta screenptr_top+1
-
-    sec
-    lda screenptr_bot+0
-    sbc pixelmask
-    sta screenptr_bot+0
-    lda screenptr_bot+1
-    sbc #0
     sta screenptr_bot+1
 
     rts
@@ -612,13 +583,21 @@ program_start = O%
 .setup_bytes_end
 
 
-\ The row lookup table; maps character rows to screen addresses.
-.row_table:
+\ The row lookup tables; maps character rows to screen addresses.
+.row_table_lo:
 ]
-FOR row=0 TO 31
+FOR Y%=0 TO 255
+    [OPT pass
+        equb (&3000 + (Y% DIV 8)*640 + (Y% MOD 8)) MOD 256
+    ]
+NEXT
 [OPT pass
-    equw &3000 + row*640
+.row_table_hi:
 ]
+FOR Y%=0 TO 255
+    [OPT pass
+        equb (&3000 + (Y% DIV 8)*640 + (Y% MOD 8)) DIV 256
+    ]
 NEXT
 
 kernel_start = O%
