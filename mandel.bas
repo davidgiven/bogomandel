@@ -27,6 +27,10 @@ pixels_to_zr_lo = 0
 pixels_to_zr_hi = 0
 pixels_to_zi_lo = 0
 pixels_to_zi_hi = 0
+col_table_lo = 0
+col_table_hi = 0
+row_table_lo = 0
+row_table_hi = 0
 
 oswrch     = &FFEE
 romsel     = &FE30
@@ -37,8 +41,9 @@ PRINT "pass 1": PROCassemble(4)
 PRINT "pass 2": PROCassemble(6)
 PRINT "pass 3": PROCassemble(6)
 
-PRINT "Total size: &"; ~(O% - program_buffer)
-PRINT "...main:    &"; ~(program_end - program_start)
+PRINT "Program top: &"; ~P%
+PRINT "Total size:  &"; ~(O% - program_buffer)
+PRINT "...main:     &"; ~(program_end - program_start)
 
 *EXEC
 INPUT '"Press RETURN to start"; A$
@@ -103,11 +108,12 @@ P% = &E00
 program_start = O%
 [OPT pass
     \ ...and this gets invoked once the program's successfully copied.
-    \ First, initialise the screen.
+
+    \ Initialisation.
+
     jsr init_screen
-
-    \ Build the lookup tables.
-
+    jsr build_row_table
+    jsr build_col_table
     jsr build_pixels_to_z_table
 
     \ Map sideways RAM bank 4, containing our lookup table.
@@ -663,6 +669,68 @@ program_start = O%
     rts
 
 
+\ Build the column table (pixels/2 to address offset).
+.build_col_table
+    stz screenptr+0
+    stz screenptr+1
+    ldx #0
+.build_col_table_loop
+    clc
+    lda screenptr+0
+    sta col_table_lo, X
+    adc #8
+    sta screenptr+0
+
+    lda screenptr+1
+    sta col_table_hi, X
+    adc #0
+    sta screenptr+1
+
+    inx
+    bpl build_col_table_loop
+    rts
+
+
+\ Build the row table (pixels to address).
+.build_row_table
+    stz screenptr+0
+    lda #&30 \ framebuffer at &3000
+    sta screenptr+1
+    ldx #0
+.build_row_table_loop
+    clc
+    lda screenptr+0
+    sta row_table_lo, X
+    adc #1
+    sta screenptr+0
+
+    lda screenptr+1
+    sta row_table_hi, X
+    adc #0
+    sta screenptr+1
+
+    inx
+    beq build_row_table_loop_exit
+    txa
+    and #7
+    bne build_row_table_loop
+
+    \ Reached the end of a char row; increment by (640-8) to move
+    \ to the next char row.
+
+    clc
+    lda screenptr+0
+    adc #(640-8) MOD 256
+    sta screenptr+0
+    lda screenptr+1
+    adc #(640-8) DIV 256
+    sta screenptr+1
+
+    bra build_row_table_loop
+.build_row_table_loop_exit
+    rts
+
+
 \ Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
 .palette
     equb &00
@@ -701,49 +769,18 @@ program_start = O%
     equb 12    \ clear window
 .setup_bytes_end
 
-
-\ The row lookup tables; maps character rows to screen addresses.
-.row_table_lo:
 ]
-FOR Y%=0 TO 255
-    [OPT pass
-        equb (&3000 + (Y% DIV 8)*640 + (Y% MOD 8)) MOD 256
-    ]
-NEXT
-[OPT pass
-.row_table_hi:
-]
-FOR Y%=0 TO 255
-    [OPT pass
-        equb (&3000 + (Y% DIV 8)*640 + (Y% MOD 8)) DIV 256
-    ]
-NEXT
-
-[OPT pass
-\ The column lookup tables; maps physical pixels/2 to scanline offsets.
-.col_table_lo
-]
-FOR X%=0 TO 255 STEP 2
-    [OPT pass
-        equb (X% * 4) MOD 256
-    ]
-NEXT
-[OPT pass
-.col_table_hi
-]
-FOR X%=0 TO 255 STEP 2
-    [OPT pass
-        equb (X% * 4) DIV 256
-    ]
-NEXT
-
 program_end = O%
 program_size = program_end - program_start
 
-pixels_to_zr_lo     = P%+&0000
-pixels_to_zr_hi     = P%+&0100
+pixels_to_zr_lo = P%+&0000
+pixels_to_zr_hi = P%+&0100
 pixels_to_zi_lo = P%+&0200
 pixels_to_zi_hi = P%+&0300
+col_table_lo    = P%+&0400
+col_table_hi    = P%+&0480: REM 128 bytes onle
+row_table_lo    = P%+&0500
+row_table_hi    = P%+&0600
 
 ENDPROC
 
