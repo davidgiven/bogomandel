@@ -1,9 +1,13 @@
 ITERATIONS = 32
 
-top = 1
-left = -1
-right = 1
-bottom = -1
+scale = 1
+centerx = 0
+centery = 0
+
+left = centerx-scale
+top = centery-scale
+right = centerx+scale
+bottom = centery+scale
 
 width = right - left
 height = bottom - top
@@ -18,9 +22,6 @@ buffer_size = &1000
 program_start = 0
 program_end = 0
 program_size = 0
-kernel_start = 0
-kernel_end = 0
-kernel_size = 1
 
 oswrch     = &FFEE
 romsel     = &FE30
@@ -33,7 +34,6 @@ PRINT "pass 3": PROCassemble(6)
 
 PRINT "Total size: &"; ~(O% - program_buffer)
 PRINT "...main:    &"; ~(program_end - program_start)
-PRINT "...kernel:  &"; ~(kernel_end - kernel_start)
 
 *EXEC
 INPUT '"Press RETURN to start"; A$
@@ -41,7 +41,7 @@ INPUT '"Press RETURN to start"; A$
 END
 
 DEF PROCassemble(pass)
-P% = &72
+P% = &70
 O% = program_buffer
 [OPT pass
 .screenptr  equw 0
@@ -62,6 +62,12 @@ O% = program_buffer
 
 .corecolour     equb 0
 .colourflag     equb 0
+
+.cr             equw 0
+.ci             equw 0
+.zi             equw 0
+.zr             equw 0
+.zr_p_zi        equw 0
 ]
 
 P% = program_buffer
@@ -83,15 +89,6 @@ NEXT
 [OPT pass
     inx
     bne copy_program_loop
-
-    \ Copy the kernel.
-
-    ldx #kernel_size-1
-.copy_kernel_loop
-    lda kernel_start, X
-    sta mandel, X
-    dex
-    bpl copy_kernel_loop
 
     \ And go.
     jmp run_location
@@ -320,10 +317,10 @@ program_start = O%
     lsr A
     tax
     lda pixels_to_reals_lo, X
-    sta cr_lo
+    sta cr+0
     sta zr+0
     lda pixels_to_reals_hi, X
-    sta cr_hi
+    sta cr+1
     sta zr+1
 
     ldy screeny
@@ -346,6 +343,101 @@ program_start = O%
     ora colourflag
     sta colourflag
 
+    rts
+
+
+\ Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
+\ calculate the colour.
+.mandel
+    lda #ITERATIONS
+    sta iterations
+.iterator_loop
+    ldy #1              \ indexing with this accesses the high byte 
+
+    \ Calculate zr^2 + zi^2. 
+
+    clc
+    lda (zr)            \ A = low(zr^2) 
+    tax                 
+    adc (zi)            \ A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
+    sta zr2_p_zi2_lo
+    lda (zr), y         \ A = high(zr^2) 
+    adc (zi), y         \ A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
+    cmp #&08            \ &0800 = 4.0 
+    bcs bailout
+    sta zr2_p_zi2_hi
+
+    \ Calculate zr + zi. 
+
+    clc
+    lda zr+0            \ A = low(zr) 
+    adc zi+0            \ A = low(zr + zi) 
+    sta zr_p_zi+0
+    lda zr+1            \ A = high(zr) 
+    adc zi+1            \ A = high(zr + zi) + C 
+    and #&3F
+    ora #&80            \ fixup 
+    sta zr_p_zi+1
+
+    \ Calculate zr^2 - zi^2. 
+
+    txa                 \ A = low(zr^2) 
+    sec
+    sbc (zi)            \ A = low(zr^2 - zi^2) 
+    tax
+    lda (zr), y         \ A = high(zr^2) 
+    sbc (zi), y         \ A = high(zr^2 - zi^2) 
+    sta zr2_m_zi2_hi
+
+    \ Calculate zr = (zr^2 - zi^2) + cr. 
+
+    clc
+    txa
+    adc cr+0            \ A = low(zr^2 - zi^2 + cr) 
+    sta zr+0
+]: zr2_m_zi2_hi = P%+1: [OPT pass
+    lda #99             \ A = high(zr^2 - zi^2) 
+    adc cr+1            \ A = high(zr^2 - zi^2 + cr) 
+    and #&3F
+    ora #&80            \ fixup 
+    sta zr+1
+
+    \ Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
+
+    sec
+    lda (zr_p_zi)       \ A = low((zr + zi)^2) 
+]: zr2_p_zi2_lo = P%+1: [OPT pass
+    sbc #99             \ A = low((zr + zi)^2 - (zr^2 + zi^2)) 
+    tax
+    lda (zr_p_zi), y    \ A = high((zr + zi)^2) 
+]: zr2_p_zi2_hi = P%+1: [OPT pass
+    sbc #99             \ A = high((zr + zi)^2 - (zr^2 + zi^2)) 
+    tay
+
+    \ Calculate zi = zi' + ci. 
+
+    clc
+    txa
+]: ci_lo        = P%+1: [OPT pass
+    adc #99
+    sta zi+0
+    tya
+]: ci_hi        = P%+1: [OPT pass
+    adc #99
+    and #&3F
+    ora #&80            \ fixup 
+    sta zi+1
+
+    dec iterations
+    bne iterator_loop
+
+.bailout
+]: iterations   = P%+1: [OPT pass
+    lda #99
+    and #7
+    tax
+    lda palette, X
+    sta pixelcol
     rts
 
 
@@ -536,7 +628,7 @@ program_start = O%
     equb 2
     equb 19    \ redefine palette
     equb 8     \ special marker colour
-    equb 0     \ ...to black
+    equb 4     \ ...to blue
     equw 0: equb 0
     equb 28    \ set text window
     equb 0: equb 31: equb 15: equb 0
@@ -623,112 +715,7 @@ FOR Y%=0 TO 255
 NEXT
 program_end = O%
 
-kernel_start = O%
-P% = 0
-[OPT pass
-\ Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
-\ calculate the colour.
-.mandel
-    lda #ITERATIONS
-    sta iterations
-.iterator_loop
-    ldy #1              \ indexing with this accesses the high byte 
-
-    \ Calculate zr^2 + zi^2. 
-
-    clc
-]: zr = P%+1: [OPT pass
-    lda &9999           \ A = low(zr^2) 
-    tax                 
-]: zi = P%+1: [OPT pass
-    adc &9999           \ A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
-    sta zr2_p_zi2_lo
-    lda (zr), y         \ A = high(zr^2) 
-    adc (zi), y         \ A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
-    cmp #&08            \ &0800 = 4.0 
-    bcs bailout
-    sta zr2_p_zi2_hi
-
-    \ Calculate zr + zi. 
-
-    clc
-    lda zr+0            \ A = low(zr) 
-    adc zi+0            \ A = low(zr + zi) 
-    sta zr_p_zi+0
-    lda zr+1            \ A = high(zr) 
-    adc zi+1            \ A = high(zr + zi) + C 
-    and #&3F
-    ora #&80            \ fixup 
-    sta zr_p_zi+1
-
-    \ Calculate zr^2 - zi^2. 
-
-    txa                 \ A = low(zr^2) 
-    sec
-    sbc (zi)            \ A = low(zr^2 - zi^2) 
-    tax
-    lda (zr), y         \ A = high(zr^2) 
-    sbc (zi), y         \ A = high(zr^2 - zi^2) 
-    sta zr2_m_zi2_hi
-
-    \ Calculate zr = (zr^2 - zi^2) + cr. 
-
-    clc
-    txa
-]: cr_lo        = P%+1: [OPT pass
-    adc #99             \ A = low(zr^2 - zi^2 + cr) 
-    sta zr+0
-]: zr2_m_zi2_hi = P%+1: [OPT pass
-    lda #99             \ A = high(zr^2 - zi^2) 
-]: cr_hi        = P%+1: [OPT pass
-    adc #99             \ A = high(zr^2 - zi^2 + cr) 
-    and #&3F
-    ora #&80            \ fixup 
-    sta zr+1
-
-    \ Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
-
-    sec
-]: zr_p_zi = P%+1: [OPT pass
-    lda &9999           \ A = low((zr + zi)^2) 
-]: zr2_p_zi2_lo = P%+1: [OPT pass
-    sbc #99             \ A = low((zr + zi)^2 - (zr^2 + zi^2)) 
-    tax
-    lda (zr_p_zi), y    \ A = high((zr + zi)^2) 
-]: zr2_p_zi2_hi = P%+1: [OPT pass
-    sbc #99             \ A = high((zr + zi)^2 - (zr^2 + zi^2)) 
-    tay
-
-    \ Calculate zi = zi' + ci. 
-
-    clc
-    txa
-]: ci_lo        = P%+1: [OPT pass
-    adc #99
-    sta zi+0
-    tya
-]: ci_hi        = P%+1: [OPT pass
-    adc #99
-    and #&3F
-    ora #&80            \ fixup 
-    sta zi+1
-
-    dec iterations
-    bne iterator_loop
-
-.bailout
-]: iterations   = P%+1: [OPT pass
-    lda #99
-    and #7
-    tax
-    lda palette, X
-    sta pixelcol
-    rts
-]
-kernel_end = O%
 program_size = program_end - program_start
-kernel_size = kernel_end - kernel_start
-
 ENDPROC
 
 DEF FNtofixed(f) = (f * fixedmul) AND &3FFF OR &8000
