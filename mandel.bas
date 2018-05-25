@@ -23,6 +23,11 @@ program_start = 0
 program_end = 0
 program_size = 0
 
+pixels_to_zr_lo = 0
+pixels_to_zr_hi = 0
+pixels_to_zi_lo = 0
+pixels_to_zi_hi = 0
+
 oswrch     = &FFEE
 romsel     = &FE30
 romsel_ram = &F4
@@ -99,13 +104,11 @@ program_start = O%
 [OPT pass
     \ ...and this gets invoked once the program's successfully copied.
     \ First, initialise the screen.
-    ldx #0
-.init_screen_loop
-    lda setup_bytes, X
-    jsr oswrch
-    inx
-    cpx #(setup_bytes_end - setup_bytes)
-    bne init_screen_loop
+    jsr init_screen
+
+    \ Build the lookup tables.
+
+    jsr build_pixels_to_z_table
 
     \ Map sideways RAM bank 4, containing our lookup table.
 
@@ -314,20 +317,19 @@ program_start = O%
     \ Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2).
 
     lda screenx
-    lsr A
     tax
-    lda pixels_to_reals_lo, X
+    lda pixels_to_zr_lo, X
     sta cr+0
     sta zr+0
-    lda pixels_to_reals_hi, X
+    lda pixels_to_zr_hi, X
     sta cr+1
     sta zr+1
 
     ldy screeny
-    lda pixels_to_imaginary_lo, Y
+    lda pixels_to_zi_lo, Y
     sta ci_lo
     sta zi+0
-    lda pixels_to_imaginary_hi, Y
+    lda pixels_to_zi_hi, Y
     sta ci_hi
     sta zi+1
 
@@ -604,6 +606,63 @@ program_start = O%
     rts
 
 
+\ Resets the screen.
+.init_screen
+    ldx #0
+.init_screen_loop
+    lda setup_bytes, X
+    jsr oswrch
+    inx
+    cpx #(setup_bytes_end - setup_bytes)
+    bne init_screen_loop
+    rts
+
+
+\ Build the pixels-to-z table.
+.build_pixels_to_z_table
+    lda #FNtofixed(left) MOD 256
+    sta zr+0
+    lda #FNtofixed(left) DIV 256
+    sta zr+1
+
+    lda #FNtofixed(top) MOD 256
+    sta zi+0
+    lda #FNtofixed(top) DIV 256
+    sta zi+1
+
+    ldx #0
+.build_pixels_to_z_loop
+    clc
+    lda zr+0
+    sta pixels_to_zr_lo, X
+    adc #FNtofixed(xstep) MOD 256
+    sta zr+0
+
+    lda zr+1
+    sta pixels_to_zr_hi, X
+    adc #FNtofixed(xstep) DIV 256
+    and #&3F
+    ora #&80
+    sta zr+1
+
+    clc
+    lda zi+0
+    sta pixels_to_zi_lo, X
+    adc #FNtofixed(ystep) MOD 256
+    sta zi+0
+
+    lda zi+1
+    sta pixels_to_zi_hi, X
+    adc #FNtofixed(ystep) DIV 256
+    and #&3F
+    ora #&80
+    sta zi+1
+
+    inx
+    bne build_pixels_to_z_loop
+    rts
+
+
 \ Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
 .palette
     equb &00
@@ -628,7 +687,7 @@ program_start = O%
     equb 2
     equb 19    \ redefine palette
     equb 8     \ special marker colour
-    equb 4     \ ...to blue
+    equb 0     \ ...to black
     equw 0: equb 0
     equb 28    \ set text window
     equb 0: equb 31: equb 15: equb 0
@@ -678,44 +737,14 @@ FOR X%=0 TO 255 STEP 2
     ]
 NEXT
 
-[OPT pass
-\ Maps logical X pixels/2 to fixed-point reals.
-.pixels_to_reals_lo
-]
-FOR X%=0 TO 255 STEP 2
-    [OPT pass
-        equb FNtofixed(X%*xstep + left) MOD 256
-    ]
-NEXT
-[OPT pass
-.pixels_to_reals_hi
-]
-FOR X%=0 TO 255 STEP 2
-    [OPT pass
-        equb FNtofixed(X%*xstep + left) DIV 256
-    ]
-NEXT
-
-[OPT pass
-\ Maps logical Y pixels to fixed-point imaginaries.
-.pixels_to_imaginary_lo
-]
-FOR Y%=0 TO 255
-    [OPT pass
-        equb FNtofixed(Y%*ystep + top) MOD 256
-    ]
-NEXT
-[OPT pass
-.pixels_to_imaginary_hi
-]
-FOR Y%=0 TO 255
-    [OPT pass
-        equb FNtofixed(Y%*ystep + top) DIV 256
-    ]
-NEXT
 program_end = O%
-
 program_size = program_end - program_start
+
+pixels_to_zr_lo     = P%+&0000
+pixels_to_zr_hi     = P%+&0100
+pixels_to_zi_lo = P%+&0200
+pixels_to_zi_hi = P%+&0300
+
 ENDPROC
 
 DEF FNtofixed(f) = (f * fixedmul) AND &3FFF OR &8000
