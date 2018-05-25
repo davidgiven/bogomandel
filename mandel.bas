@@ -1,19 +1,5 @@
 ITERATIONS = 32
 
-scale = 1
-centerx = 0
-centery = 0
-
-left = centerx-scale
-top = centery-scale
-right = centerx+scale
-bottom = centery+scale
-
-width = right - left
-height = bottom - top
-xstep = width / 256
-ystep = height / 256
-
 fixedmul = 2^9
 
 HIMEM = &7000
@@ -33,17 +19,24 @@ row_table_lo = 0
 row_table_hi = 0
 
 oswrch     = &FFEE
+osbyte     = &FFF4
 romsel     = &FE30
 romsel_ram = &F4
+
 run_location = &E00
 
 PRINT "pass 1": PROCassemble(4)
 PRINT "pass 2": PROCassemble(6)
 PRINT "pass 3": PROCassemble(6)
 
+PRINT "Loading charset to &"; ~charset_o
+OSCLI "LOAD ThinSet " + STR$~charset_o
+
 PRINT "Program top: &"; ~P%
 PRINT "Total size:  &"; ~(O% - program_buffer)
 PRINT "...main:     &"; ~(program_end - program_start)
+
+OSCLI "SAVE mandelbin " + STR$~program_start + " " + STR$~program_end
 
 *EXEC
 INPUT '"Press RETURN to start"; A$
@@ -72,6 +65,10 @@ O% = program_buffer
 
 .corecolour     equb 0
 .colourflag     equb 0
+
+.top            equw 0
+.left           equw 0
+.step           equb 0
 
 .cr             equw 0
 .ci             equw 0
@@ -111,15 +108,28 @@ program_start = O%
 
     \ Initialisation.
 
+    jsr set_charset
     jsr init_screen
+    jsr clear_screen
     jsr build_row_table
     jsr build_col_table
-    jsr build_pixels_to_z_table
 
     \ Map sideways RAM bank 4, containing our lookup table.
 
     lda #4
     jsr map_rom
+
+    \ Zoom settings.
+
+    lda #FNtofixed(-2) MOD 256
+    sta top+0
+    sta left+0
+    lda #FNtofixed(-2) DIV 256
+    sta top+1
+    sta left+1
+    lda #8
+    sta step
+    jsr build_pixels_to_z_table
 
     \ Draw.
 
@@ -614,6 +624,12 @@ program_start = O%
 
 \ Resets the screen.
 .init_screen
+    lda #22: jsr oswrch
+    lda #2: jsr oswrch
+
+    lda #39: sta &30A             \ Characters per line
+    lda #16: sta &34F             \ Byte per character
+
     ldx #0
 .init_screen_loop
     lda setup_bytes, X
@@ -623,17 +639,36 @@ program_start = O%
     bne init_screen_loop
     rts
 
+.setup_bytes
+    equb 23    \ redefine
+    equb 1     \ cursor
+    equb 0     \ off
+    equd 0: equd 0
+    equb 19    \ redefine palette
+    equb 8     \ special marker colour
+    equb 0     \ ...to black
+    equw 0: equb 0
+    equb 17    \ set colour
+    equb 128+8 \ special marker colour
+.setup_bytes_end
+
+
+\ Clears the screen between renders.
+.clear_screen
+    lda #12
+    jmp oswrch
+
 
 \ Build the pixels-to-z table.
 .build_pixels_to_z_table
-    lda #FNtofixed(left) MOD 256
+    lda left+0
     sta zr+0
-    lda #FNtofixed(left) DIV 256
+    lda left+1
     sta zr+1
 
-    lda #FNtofixed(top) MOD 256
+    lda top+0
     sta zi+0
-    lda #FNtofixed(top) DIV 256
+    lda top+1
     sta zi+1
 
     ldx #0
@@ -641,12 +676,12 @@ program_start = O%
     clc
     lda zr+0
     sta pixels_to_zr_lo, X
-    adc #FNtofixed(xstep) MOD 256
+    adc step
     sta zr+0
 
     lda zr+1
     sta pixels_to_zr_hi, X
-    adc #FNtofixed(xstep) DIV 256
+    adc #0
     and #&3F
     ora #&80
     sta zr+1
@@ -654,12 +689,12 @@ program_start = O%
     clc
     lda zi+0
     sta pixels_to_zi_lo, X
-    adc #FNtofixed(ystep) MOD 256
+    adc step
     sta zi+0
 
     lda zi+1
     sta pixels_to_zi_hi, X
-    adc #FNtofixed(ystep) DIV 256
+    adc #0
     and #&3F
     ora #&80
     sta zi+1
@@ -731,6 +766,53 @@ program_start = O%
     rts
 
 
+.set_charset
+    lda #charset MOD 256
+    sta screenptr+0
+    lda #charset DIV 256
+    sta screenptr+1
+
+    ldx #32
+.charloop
+    lda #23
+    jsr oswrch
+    txa
+    jsr oswrch
+
+    ldy #0
+.byteloop
+    txa
+    lsr A               \ odd/even bit to C
+    lda (screenptr), Y
+    bcc dont_shift_nibble
+    asl A: asl A: asl A: asl A
+.dont_shift_nibble
+    and #&F0
+    jsr oswrch
+    
+    iny
+    cpy #8
+    bne byteloop
+
+    txa
+    lsr A               \ odd/even bit to C
+    bcc dont_advance
+
+    clc
+    tya
+    adc screenptr+0
+    sta screenptr+0
+    lda screenptr+1
+    adc #0
+    sta screenptr+1
+
+.dont_advance
+    inx
+    cpx #127
+    bne charloop
+    rts
+
+
 \ Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
 .palette
     equb &00
@@ -750,25 +832,8 @@ program_start = O%
     equb &A8
     equb &AA
 
-.setup_bytes
-    equb 22    \ mode
-    equb 2
-    equb 19    \ redefine palette
-    equb 8     \ special marker colour
-    equb 0     \ ...to black
-    equw 0: equb 0
-    equb 28    \ set text window
-    equb 0: equb 31: equb 15: equb 0
-    equb 17    \ set colour
-    equb 128+8 \ special marker colour
-    equb 12    \ clear window
-    equb 28    \ set text window
-    equb 16: equb 31: equb 19: equb 0
-    equb 17    \ set colour
-    equb 128   \ black
-    equb 12    \ clear window
-.setup_bytes_end
-
+.charset
+]: charset_o = O%: P% = P% + 896: O% = O% + 896: [OPT pass
 ]
 program_end = O%
 program_size = program_end - program_start

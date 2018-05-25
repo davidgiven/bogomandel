@@ -1,1 +1,1 @@
-*basicMODE 131*load table 3000*srwrite 3000+3FFF 8000 4*load mandel e02*basic @RUN
+*basicMODE 135*load table 3000*srwrite 3000+3FFF 8000 4*load mandel e02*basic @RUN

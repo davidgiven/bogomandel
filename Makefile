@@ -5,7 +5,8 @@ mandel.ssd: mandel table mkdfs !boot !run Makefile
 		-f !boot \
 		-f !run \
 		-f table \
-		-f mandel
+		-f mandel \
+		-f ThinSet
 
 mandel: mandel.bas Makefile
 	((cat mandel.bas | sed -e 's/^ *//' -e 's/\\.*//' | nl -b a -n rn -w 4 -s "" | tr '\n' '\r') && \
