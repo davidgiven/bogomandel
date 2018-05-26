@@ -26,10 +26,10 @@ IF G%=129 THEN vr=vr-step: UNTIL TRUE: ENDPROC
 IF G%=130 THEN vr=vr+step: UNTIL TRUE: ENDPROC
 IF G%=131 THEN vi=vi+step: UNTIL TRUE: ENDPROC
 IF G%=132 THEN vi=vi-step: UNTIL TRUE: ENDPROC
-IF G%=140 THEN cr=cr-step/10: PROCbanner
-IF G%=141 THEN cr=cr+step/10: PROCbanner
-IF G%=142 THEN ci=ci+step/10: PROCbanner
-IF G%=143 THEN ci=ci-step/10: PROCbanner
+IF G%=140 THEN cr=cr-step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
+IF G%=141 THEN cr=cr+step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
+IF G%=142 THEN ci=ci+step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
+IF G%=143 THEN ci=ci-step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=43 AND scale>1 THEN scale=scale/2: UNTIL TRUE: ENDPROC
 IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
@@ -62,6 +62,9 @@ TIME=0
 !&70=vr*512
 !&72=vi*512
 ?&74=scale*2
+?&75=NOT M%
+!&76=cr*512
+!&78=ci*512
 CALL &2000
 t=TIME/100
 PRINT TAB(0,15);

@@ -24,6 +24,9 @@ org &70
 .centerx        equw 0
 .centery        equw 0
 .step           equb 0
+.julia          equb 0
+.cr             equw 0
+.ci             equw 0
 
 .screenptr      equw 0
 .screenx        equb 0
@@ -44,12 +47,11 @@ org &70
 .corecolour     equb 0
 .colourflag     equb 0
 
-.cr             equw 0
-.ci             equw 0
 .zi             equw 0
 .zr             equw 0
 .zr_p_zi        equw 0
 .iterations     equb 0
+.dr             equw 0
 
 ; --- Main program ----------------------------------------------------------
 
@@ -70,6 +72,24 @@ guard mc_top
 
     lda #4
     jsr map_rom
+
+    ; Sanitise c, if one was provided.
+
+    lda cr+0
+    and #&FE
+    sta cr+0
+    lda cr+1
+    and #&3F
+    ora #&80
+    sta cr+1
+    
+    lda ci+0
+    and #&FE
+    sta ci+0
+    lda ci+1
+    and #&3F
+    ora #&80
+    sta ci+1
 
     ; Zoom settings.
 
@@ -289,19 +309,29 @@ guard mc_top
 
     ldx screenx
     lda pixels_to_zr_lo, X
-    sta cr+0
     sta zr+0
     lda pixels_to_zr_hi, X
-    sta cr+1
     sta zr+1
 
     ldy screeny
     lda pixels_to_zi_lo, Y
-    sta ci_lo
     sta zi+0
     lda pixels_to_zi_hi, Y
-    sta ci_hi
     sta zi+1
+
+    ; If this is a Mandelbrot set, copy z to c. Otherwise leave c untouched.
+
+    lda julia
+    bne not_julia
+    lda zr+0
+    sta cr+0
+    lda zr+1
+    sta cr+1
+    lda zi+0
+    sta ci+0
+    lda zi+1
+    sta ci+1
+.not_julia
 
     jsr mandel
     lda pixelcol
@@ -390,12 +420,10 @@ zr2_p_zi2_hi = *+1
 
     clc
     txa
-ci_lo = *+1
-    adc #99
+    adc ci+0
     sta zi+0
     tya
-ci_hi = *+1
-    adc #99
+    adc ci+1
     and #&3F
     ora #&80            ; fixup 
     sta zi+1
@@ -598,31 +626,31 @@ ci_hi = *+1
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
-    ; Load cr with step*128 (half a screen width).
+    ; Load dr with step*128 (half a screen width).
 
-    stz cr+0
-    lda step ; A:(cr+0) = step * 256
+    stz dr+0
+    lda step ; A:(dr+0) = step * 256
 
     lsr A
-    ror cr+0 ; A:(cr+0) = step * 128
-    sta cr+1
+    ror dr+0 ; A:(dr+0) = step * 128
+    sta dr+1
 
     ; Now set zr and zi to the top and left of the image.
 
     sec
     lda centerx+0
-    sbc cr+0
+    sbc dr+0
     sta zr+0
     lda centerx+1
-    sbc cr+1
+    sbc dr+1
     sta zr+1
 
     sec
     lda centery+0
-    sbc cr+0
+    sbc dr+0
     sta zi+0
     lda centery+1
-    sbc cr+1
+    sbc dr+1
     sta zi+1
 
     ldx #0
