@@ -1,15 +1,16 @@
 MODE 135
 HIMEM=&2000
 VDU 23,1,0,0,0;0;0;
-PROCcenter("Ñthe increasingly inaccurately named", 9, 1)
-PROCcenter("ÜçB O G O M A N D E L", 10, 2)
-PROCcenter("ÜçB O G O M A N D E L", 11, 2)
+PROCcenter("Ñthe increasingly inaccurately named", 5, 1)
+PROCcenter("ÜçB O G O M A N D E L", 6, 2)
+PROCcenter("ÜçB O G O M A N D E L", 7, 2)
 PROCcenter("Ñis loading", 12, 1)
 PROCcenter("Å(because renaming Github", 23, 1)
 PROCcenter("Årepositories is hard)", 24, 1)
 *exec
 *fx 21,0
 *fx 4,2
+*fx 229,1,0
 *key 12 |!|A
 *key 13 |!|B
 *key 14 |!|C

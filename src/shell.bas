@@ -6,6 +6,8 @@ vr=0
 vi=0
 scale=4
 
+PROChelp
+
 REPEAT
 step=0.25 * scale
 PROCrender
@@ -33,6 +35,8 @@ IF G%=143 THEN ci=ci-step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=43 AND scale>1 THEN scale=scale/2: UNTIL TRUE: ENDPROC
 IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
+IF G%=13 THEN UNTIL TRUE: ENDPROC
+IF G%=63 THEN PROChelp: UNTIL TRUE: ENDPROC
 UNTIL FALSE
 ENDPROC
 
@@ -81,4 +85,39 @@ Y%=512 - (ci-vi)*1024/scale
 GCOL 4, 7
 MOVE X%-48, Y%:DRAW X%+48, Y%
 MOVE X%, Y%-48:DRAW X%, Y%+48
+ENDPROC
+
+DEFPROChelp
+VDU 26:CLS
+COLOUR 6: PROCcenter("B O G O M A N D E L", 1)
+COLOUR 4: PROCcenter("Mandelbrot and Julia set explorer", 3)
+COLOUR 4: PROCcenter("(C) 2018 David Given and Andrew Jenner", 5)
+COLOUR 6: PROCcenter("http://some/url/here", 6)
+COLOUR 3
+PRINTTAB(5, 9);"Controls:"
+COLOUR 7
+PRINT'TAB(7);"Cursor keys"
+PRINT'TAB(7);"+ and -"
+PRINT'TAB(7);"Shift + cursor keys"
+PRINT'TAB(7);"Space"
+PRINT'TAB(7);"Return"
+COLOUR 3
+PRINTTAB(9, 12);"Pan image"
+PRINT'TAB(9);"Zooms in and out"
+PRINT'TAB(9);"Moves the cursor"
+PRINT'TAB(9);"Flips Julia and Mandelbrot mode"
+PRINTTAB(9);"Rerenders the current image"
+COLOUR 1
+PROCcenter("You don't have to wait for a render to", 23)
+PROCcenter("complete before pressing a key!", 24)
+COLOUR 5
+PROCcenter("Try moving the cursor while in", 26)
+PROCcenter("Julia mode!", 27)
+
+COLOUR 3: PROCcenter("Press any key to continue", 30)
+IFGET
+ENDPROC
+
+DEFPROCcenter(S$,Y%)
+PRINTTAB(20-LEN(S$)/2,Y%);S$;
 ENDPROC
