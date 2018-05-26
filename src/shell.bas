@@ -92,7 +92,7 @@ VDU 26:CLS
 COLOUR 6: PROCcenter("B O G O M A N D E L", 1)
 COLOUR 4: PROCcenter("Mandelbrot and Julia set explorer", 3)
 COLOUR 4: PROCcenter("(C) 2018 David Given and Andrew Jenner", 5)
-COLOUR 6: PROCcenter("http://some/url/here", 6)
+COLOUR 6: PROCcenter("http://cowlark.com/2018-05-26-bogomandel", 6)
 COLOUR 3
 PRINTTAB(5, 9);"Controls:"
 COLOUR 7
