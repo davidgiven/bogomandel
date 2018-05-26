@@ -1,3 +1,40 @@
+
+cr=0
+ci=0
+scale=4
+
+REPEAT
+step=0.25 * scale
+PROCrender
+PROCcursor
+UNTIL FALSE
+END
+
+DEFPROCcursor
+REPEAT
+G%=GET
+IF G%=136 THEN cr=cr-step: UNTIL TRUE: ENDPROC
+IF G%=137 THEN cr=cr+step: UNTIL TRUE: ENDPROC
+IF G%=138 THEN ci=ci+step: UNTIL TRUE: ENDPROC
+IF G%=139 THEN ci=ci-step: UNTIL TRUE: ENDPROC
+IF G%=43 AND scale>1 THEN scale=scale/2: UNTIL TRUE: ENDPROC
+IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
+UNTIL FALSE
+ENDPROC
+
+DEFPROCrender
+VDU 28, 32, 31, 39, 0
+CLS
+PRINT "r=";cr
+PRINT "i=";ci
+PRINT "scale=";scale
+
 TIME=0
+!&70=cr*512
+!&72=ci*512
+?&74=scale*2
 CALL &2000
-PRINT TIME/100
+t=TIME/100
+PRINT TAB(0,4);INT((128*256)/t); TAB(3,5);"px/s"
+PRINT TAB(0,7);t; TAB(3,8); "secs"
+ENDPROC

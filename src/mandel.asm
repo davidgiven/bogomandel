@@ -21,6 +21,10 @@ putbasic "src/shell.bas", "shell"
 ; --- Global page ------------------------------------------------------------
 
 org &70
+.centerx        equw 0
+.centery        equw 0
+.step           equb 0
+
 .screenptr      equw 0
 .screenx        equb 0
 .screeny        equb 0
@@ -39,10 +43,6 @@ org &70
 
 .corecolour     equb 0
 .colourflag     equb 0
-
-.centerx        equw 0
-.centery        equw 0
-.step           equb 0
 
 .cr             equw 0
 .ci             equw 0
@@ -73,12 +73,6 @@ guard mc_top
 
     ; Zoom settings.
 
-    stz centerx+0
-    stz centery+0
-    stz centerx+1
-    stz centery+1
-    lda #8
-    sta step
     jsr build_pixels_to_z_table
 
     ; Draw.
@@ -598,7 +592,6 @@ ci_hi = *+1
     equb 12                 ; clear window
     equb 28, 32, 31, 39, 0  ; define right-hand text window
     equb 17, 128+0          ; set background to black
-    equb 12                 ; clear window
 .bytes_end
 }
 
