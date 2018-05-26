@@ -762,6 +762,7 @@ org mc_base
 guard mc_top
 
 .setscreen_start
+{
     lda #22: jsr oswrch
     lda #1: jsr oswrch    ; Note mode 1 (so text windows work)
 
@@ -773,13 +774,15 @@ guard mc_top
     lda #&55: sta &363    ; Pixel right mask
     lda #154: ldx #&F4: jsr osbyte ; Video ULA control register
 
+{
     ldx #0
-.init_screen_loop
+.loop
     lda setup_bytes, X
     jsr oswrch
     inx
     cpx #(setup_bytes_end - setup_bytes)
-    bne init_screen_loop
+    bne loop
+}
 
     ; Load jgh's special thin character set.
 
@@ -787,6 +790,25 @@ guard mc_top
     sta screenptr+0
     lda #charset DIV 256
     sta screenptr+1
+
+{
+    ldx #0
+.loop
+    lda #19
+    jsr oswrch
+    txa
+    ora #8
+    jsr oswrch
+    txa
+    jsr oswrch
+    lda #0
+    jsr oswrch
+    jsr oswrch
+    jsr oswrch
+    inx
+    cpx #8
+    bne loop
+}
 
     ldx #32
 .charloop
@@ -831,11 +853,12 @@ guard mc_top
 .setup_bytes
     equb 20                            ; reset palette
     equb 23, 1, 0, 0, 0, 0, 0, 0, 0, 0 ; cursor off
-    equb 19, 8, 0, 0, 0, 0             ; redefine special marker colour to black
+    equb 24: equw 0, 0, 1024, 1024     ; set graphics window
 .setup_bytes_end
 
 .charset
     incbin "ThinSet"
+}
 .setscreen_end
 
 save "setscrn", setscreen_start, setscreen_end
