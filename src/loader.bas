@@ -1,7 +1,10 @@
 MODE 135
 HIMEM=&2000
 PRINT "Loading..."
+*exec
+*fx 21, 0
 *load squares 3000
 *srwrite 3000+4000 8000 4
 *setscrn
-*mandel
+*load mandel 2000
+CHAIN "shell"

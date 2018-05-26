@@ -16,6 +16,7 @@ cpu 1 ; 65C02
 
 puttext "src/!boot", "!boot", 0
 putbasic "src/loader.bas", "loader"
+putbasic "src/shell.bas", "shell"
 
 ; --- Global page ------------------------------------------------------------
 
@@ -107,6 +108,16 @@ guard mc_top
 
 
 .box
+{
+    ; Check for keypress.
+
+    lda #&98    ; check buffer status
+    ldx #&00    ; keyboard buffer
+    jsr osbyte
+    bcs continue
+    rts
+.continue
+
     ; The line drawing routines don't draw the last pixel, so do that
     ; specially. (We need to probe one pixel anyway so it's no bad
     ; thing.)
@@ -270,6 +281,7 @@ guard mc_top
     pla: sta midx
 
     rts
+}
 
 
 ; Given a screenx/screeny and a calculated screen position, lazily renders the point.
