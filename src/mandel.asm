@@ -593,18 +593,14 @@ ci_hi = *+1
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
-    ; Load cr and ci with step*128 (half a screen width).
+    ; Load cr with step*128 (half a screen width).
 
     stz cr+0
     lda step ; A:(cr+0) = step * 256
 
     lsr A
     ror cr+0 ; A:(cr+0) = step * 128
-
     sta cr+1
-    sta ci+1
-    lda cr+0
-    sta ci+0
 
     ; Now set zr and zi to the top and left of the image.
 
@@ -618,10 +614,10 @@ ci_hi = *+1
 
     sec
     lda centery+0
-    sbc ci+0
+    sbc cr+0
     sta zi+0
     lda centery+1
-    sbc ci+1
+    sbc cr+1
     sta zi+1
 
     ldx #0
@@ -675,7 +671,7 @@ ci_hi = *+1
     sta screenptr+1
 
     inx
-    bpl build_col_table_loop
+    bpl build_col_table_loop ; loop up to 128
     rts
 
 
