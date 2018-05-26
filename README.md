@@ -1,45 +1,64 @@
 # Bogomandel
 
-A stupid mandelbrot program. v0, 2018-05-21
+A less stupid mandelbrot program for the BBC Micro. v1.0, 2018-05-26
+
 
 ## What?
 
-This is a really hacky toy that I hacked up. It draws a sort-of Mandelbrotish
-image on a BBC Micro in about 12 seconds.
+This started life as a really hacky toy which could draw a sort-of
+Mandelbrotish image on a BBC Micro in about 12 seconds; it grew into a much
+less hacky toy which can generate almost real-time (usually 30s per frame)
+Mandelbrots and Julia sets with 14-bit fixed point images. It mostly achieves
+these using a really clever Mandelbrot kernel written by reenigne, aka Andrew
+Jenner, so don't blame me.
+
 
 ## How?
 
-To build, you need a Linux with the xa65 assembler. Do `make` and it'll build
-a `mandel.ssd` disk image which you can boot (in, say, jsbeeb).
+To build, you need beebasm. There's a single mandel.asm file in the src
+directory; assemble this. There's a Makefile with the right command in it.
 
-You will need a BBC Master 128, as this uses all the sideways RAM.
+The resulting problem will only run on an BBC Master 128, as it uses one bank
+of sideways RAM (#4).
+
 
 ## Why?
 
 Why not?
 
-This is a toy, largely stolen from http://blog.nothinguntoward.eu/?p=38; I
-changed it to use 2.6 fixed point arithmetic, fixed-point multiplications via
-an enormous 64kB lookup table, recursive subdivision to allow quick filling
-of large areas, and the top/bottom mirroring. As 2.6 fixed point fits in a
-byte, I was curious to know whether it would work adequately on a BBC Micro.
-It does.
+This has been a really interesting learning experience in machine code, fixed
+point arithmetic and cheating the system. There's too much to go into here, but
+here's the writeup of my 8-bit fixed point version:
+
+	http://cowlark.com/2018-05-21-bbc-micro-mandelbrot/
+
+...and here's the writeup of the current, much better version:
+
+<URL will appear later>
+
 
 ## Why not?
 
-This is a toy; it can generate this one image only. You can't zoom (because
-there's not enough precision in the number representation). You can't pan
-(because it's limited to drawing the box between +/- root 2).
+14 bits isn't really enough precision to do much, as you will notice once you
+hit the zoom limit. (Try looking at Julia sets at maximum zoom. Lots of
+artifacts there!)
 
-It could be made faster, mostly by using more intelligent flood filling and
-avoiding having to trace the entire bounds of each square, but it's probably
-not worth it.
 
 ## License?
 
 Two-clause BSD; see the COPYING file. Go nuts.
 
+
 ## Who?
 
-This was written by me, David Given <dg@cowlark.com>. I have a website at
-http://cowlark.com. There may or may not be anything interesting there.
+This was written by two people:
+
+Most of the program was by myself, David Given <dg@cowlark.com>; I have a
+website at http://cowlark.com. There may or may not be anything interesting
+there.
+
+The kernel is by reenigne, aka Andrew Jenner; reenigne's musings on very fast
+Mandelbrots on the 8088 led to this program, so you might like to check out
+http://github.com/reenigne/reenigne/tree/master/8088/mandel. (This was then
+somewhat hacked by me, so bugs will be my fault.)
+
