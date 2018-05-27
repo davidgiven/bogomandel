@@ -25,12 +25,10 @@ putbasic "src/shell.bas", "shell"
 ; pointer.
 macro fixup_a ; corrups flags!
 {
-    asl A ; bit 6 -> bit 7 -> N
-    clc
-    bmi dont_set_c
-    sec
-.dont_set_c
-    ror A ; C -> bit 7
+    asl A
+    cmp #&80 ; sign bit -> C
+    ror A
+    eor #&80 ; flip sign bit
 }
 endmacro
 
