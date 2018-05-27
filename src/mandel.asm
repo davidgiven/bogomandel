@@ -23,7 +23,7 @@ putbasic "src/shell.bas", "shell"
 
 ; Given the high byte of a number in A, patches the top bit to be a valid
 ; pointer.
-macro fixup_a ; corrups flags!
+macro fixup_a ; corrupts flags!
 {
     asl A
     cmp #&80 ; sign bit -> C
@@ -65,6 +65,7 @@ org &70
 .zr             equw 0
 .zr_p_zi        equw 0
 .iterations     equb 0
+print "zero page:", ~&70, "to", ~P%
 
 ; --- Main program ----------------------------------------------------------
 
