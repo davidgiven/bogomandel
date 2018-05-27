@@ -364,6 +364,7 @@ guard mc_top
     lda (zr), y         ; A = high(zr^2) 
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
     sta zr2_p_zi2_hi
+    and #&7f
     cmp #4 << (fraction_bits-8)
     bcs bailout
 
@@ -909,6 +910,8 @@ guard &c000
         else
             extended = i
         endif
+        real = extended / (1<<fraction_bits)
+        square = real^2
 
         ; Calculate the address of this number (taking into account the fixup).
         if extended and &4000
@@ -917,9 +920,18 @@ guard &c000
             address = extended and &7ffe or &8000
         endif
 
+        ; Clamp the result at MAXINT.
+        if square > (1<<integer_bits)/2
+            clampedsquare = (1<<integer_bits)/2 - 1/(1<<fraction_bits)
+        else
+            clampedsquare = square
+        endif
+
         ; result is a square, and so is always positive! So we need to lose
         ; the sign bit.
-        result = ((extended^2) >> fraction_bits) and &3ffe or &8000
+        result = (clampedsquare * (1<<fraction_bits)) and &3ffe or &8000
+
+        print real, ~address, square, ~result
 
         org address
         equw result
