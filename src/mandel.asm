@@ -842,7 +842,7 @@ zr2_p_zi2_hi = *+1
 .row_table_lo       skip &100
 .row_table_hi       skip &100
 
-print "Program top:", ~P%
+print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
 save "mandel", main_program_start, main_program_end
 
 ; --- Screen mode setup -----------------------------------------------------
@@ -951,6 +951,7 @@ guard mc_top
 }
 .setscreen_end
 
+print "setscrn:", ~setscreen_start, "to", ~setscreen_end
 save "setscrn", setscreen_start, setscreen_end
 
 ; --- Table of squares ------------------------------------------------------
