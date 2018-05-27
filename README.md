@@ -8,9 +8,9 @@ A less stupid mandelbrot program for the BBC Micro. v1.0, 2018-05-26
 This started life as a really hacky toy which could draw a sort-of
 Mandelbrotish image on a BBC Micro in about 12 seconds; it grew into a much
 less hacky toy which can generate almost real-time (usually 30s per frame)
-Mandelbrots and Julia sets with 14-bit fixed point images. It mostly achieves
-these using a really clever Mandelbrot kernel written by reenigne, aka Andrew
-Jenner, so don't blame me.
+Mandelbrots and Julia sets with 15-bit fixed point arithmetic. It mostly
+achieves these using a really rather clever Mandelbrot kernel written by
+reenigne, aka Andrew Jenner, so don't blame me.
 
 
 ## How?
@@ -34,12 +34,12 @@ here's the writeup of my 8-bit fixed point version:
 
 ...and here's the writeup of the current, much better version:
 
-<URL will appear later>
+    http://cowlark.com/2018-05-26-bogomandel/
 
 
 ## Why not?
 
-14 bits isn't really enough precision to do much, as you will notice once you
+15 bits isn't really enough precision to do much, as you will notice once you
 hit the zoom limit. (Try looking at Julia sets at maximum zoom. Lots of
 artifacts there!)
 
