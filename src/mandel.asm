@@ -1,7 +1,7 @@
 ITERATIONS = 32
 
-fraction_bits = 10 ; including the bottom 0
-integer_bits = 5
+fraction_bits = 11 ; including the bottom 0
+integer_bits = 4
 total_bits = fraction_bits + integer_bits
 
 oswrch     = &FFEE
@@ -50,7 +50,7 @@ org &70
 
 .pixelcol       equb 0
 .pixelmask      equb 0
-.temp           equb 0
+.temp           equw 0
 
 .boxx1          equb 0
 .boxy1          equb 0
@@ -67,7 +67,6 @@ org &70
 .zr             equw 0
 .zr_p_zi        equw 0
 .iterations     equb 0
-.dr             equw 0
 
 ; --- Main program ----------------------------------------------------------
 
@@ -634,31 +633,31 @@ zr2_p_zi2_hi = *+1
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
-    ; Load dr with step*128 (half a screen width).
+    ; Load temp with step*128 (half a screen width).
 
-    stz dr+0
-    lda step ; A:(dr+0) = step * 256
+    stz temp+0
+    lda step ; A:(temp+0) = step * 256
 
     lsr A
-    ror dr+0 ; A:(dr+0) = step * 128
-    sta dr+1
+    ror temp+0 ; A:(temp+0) = step * 128
+    sta temp+1
 
     ; Now set zr and zi to the top and left of the image.
 
     sec
     lda centerx+0
-    sbc dr+0
+    sbc temp+0
     sta zr+0
     lda centerx+1
-    sbc dr+1
+    sbc temp+1
     sta zr+1
 
     sec
     lda centery+0
-    sbc dr+0
+    sbc temp+0
     sta zi+0
     lda centery+1
-    sbc dr+1
+    sbc temp+1
     sta zi+1
 
     ldx #0
@@ -931,7 +930,7 @@ guard &c000
         ; the sign bit.
         result = (clampedsquare * (1<<fraction_bits)) and &3ffe or &8000
 
-        print real, ~address, square, ~result
+        ;print real, ~address, square, ~result
 
         org address
         equw result
