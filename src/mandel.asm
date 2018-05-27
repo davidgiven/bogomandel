@@ -371,7 +371,7 @@ guard mc_top
 
     ; Calculate zr + zi. 
 
-    clc
+    ; we know C is unset from the bcs above
     lda zr+0            ; A = low(zr) 
     adc zi+0            ; A = low(zr + zi) 
     sta zr_p_zi+0
