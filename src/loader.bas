@@ -15,8 +15,9 @@ PROCcenter("Årepositories is hard)", 24, 1)
 *key 13 |!|B
 *key 14 |!|C
 *key 15 |!|D
-*load squares 3000
-*srwrite 3000+4000 8000 4
+*load squarep 4000
+*srwrite 4000+4000 8000 4
+*load squaren 4000
 *run setscrn
 *load mandel 2000
 CHAIN "shell"

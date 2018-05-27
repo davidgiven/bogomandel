@@ -1,13 +1,16 @@
 ITERATIONS = 32
 
-fraction_bits = 9
+fraction_bits = 10 ; including the bottom 0
 integer_bits = 5
 total_bits = fraction_bits + integer_bits
 
 oswrch     = &FFEE
 osbyte     = &FFF4
+accon      = &FE34
 romsel     = &FE30
 romsel_ram = &F4
+
+accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
 mc_base = &2000
 mc_top  = &3000
@@ -17,6 +20,19 @@ cpu 1 ; 65C02
 puttext "src/!boot", "!boot", 0
 putbasic "src/loader.bas", "loader"
 putbasic "src/shell.bas", "shell"
+
+; Given the high byte of a number in A, patches the top bit to be a valid
+; pointer.
+macro fixup_a ; corrups flags!
+{
+    asl A ; bit 6 -> bit 7 -> N
+    clc
+    bmi dont_set_c
+    sec
+.dont_set_c
+    ror A ; C -> bit 7
+}
+endmacro
 
 ; --- Global page ------------------------------------------------------------
 
@@ -73,25 +89,7 @@ guard mc_top
     lda #4
     jsr map_rom
 
-    ; Sanitise c, if one was provided.
-
-    lda cr+0
-    and #&FE
-    sta cr+0
-    lda cr+1
-    and #&3F
-    ora #&80
-    sta cr+1
-    
-    lda ci+0
-    and #&FE
-    sta ci+0
-    lda ci+1
-    and #&3F
-    ora #&80
-    sta ci+1
-
-    ; Zoom settings.
+    ; Compute zoom table.
 
     jsr build_pixels_to_z_table
 
@@ -365,9 +363,9 @@ guard mc_top
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
+    sta zr2_p_zi2_hi
     cmp #4 << (fraction_bits-8)
     bcs bailout
-    sta zr2_p_zi2_hi
 
     ; Calculate zr + zi. 
 
@@ -377,8 +375,7 @@ guard mc_top
     sta zr_p_zi+0
     lda zr+1            ; A = high(zr) 
     adc zi+1            ; A = high(zr + zi) + C 
-    and #&3F
-    ora #&80            ; fixup 
+    fixup_a
     sta zr_p_zi+1
 
     ; Calculate zr^2 - zi^2. 
@@ -400,8 +397,7 @@ guard mc_top
 zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
     adc cr+1            ; A = high(zr^2 - zi^2 + cr) 
-    and #&3F
-    ora #&80            ; fixup 
+    fixup_a
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -424,8 +420,7 @@ zr2_p_zi2_hi = *+1
     sta zi+0
     tya
     adc ci+1
-    and #&3F
-    ora #&80            ; fixup 
+    fixup_a
     sta zi+1
 
     dec iterations
@@ -578,16 +573,25 @@ zr2_p_zi2_hi = *+1
     asl pixelmask
 
 .plot_even_pixel
+    lda #accon_x
+    tsb accon
+
     lda (screenptr)
     and pixelmask
     ora pixelcol
     sta (screenptr)
+
+    lda #accon_x
+    trb accon
     rts
 
 
 ; Pick colour from screenx/screeny (calculate_screen_address must have been
 ; called) into pixelcol.
 .pick
+    lda #accon_x
+    tsb accon
+
     lda screenx
     ror A
     ror A ; odd/even bit to C
@@ -599,6 +603,9 @@ zr2_p_zi2_hi = *+1
 .pick_even_pixel
     and #&AA
     sta pixelcol
+
+    lda #accon_x
+    trb accon
     rts
 
 
@@ -662,8 +669,7 @@ zr2_p_zi2_hi = *+1
     sta zr+0
 
     lda zr+1
-    and #&3F
-    ora #&80
+    php: fixup_a: plp
     sta pixels_to_zr_hi, X
     adc #0
     sta zr+1
@@ -675,8 +681,7 @@ zr2_p_zi2_hi = *+1
     sta zi+0
 
     lda zi+1
-    and #&3F
-    ora #&80
+    php: fixup_a: plp
     sta pixels_to_zi_hi, X
     adc #0
     sta zi+1
@@ -792,7 +797,7 @@ guard mc_top
 .setscreen_start
 {
     lda #22: jsr oswrch
-    lda #1: jsr oswrch    ; Note mode 1 (so text windows work)
+    lda #129: jsr oswrch  ; Note mode 129 (so text windows work)
 
     lda #39:  sta &30A    ; Characters per line
     lda #16:  sta &34F    ; Bytes per character
@@ -893,20 +898,34 @@ save "setscrn", setscreen_start, setscreen_end
 
 ; --- Table of squares ------------------------------------------------------
 
-org &8000
+org &4000
 guard &c000
 
 .squares_start
 {
     for i, 0, (1<<total_bits)-1, 2
-        if i >= &2000
-            extended = i - &4000
+        if i >= (1<<total_bits)/2
+            extended = i - (1<<total_bits)
         else
             extended = i
         endif
-        equw ((extended^2) >> fraction_bits) and &3ffe or &8000
+
+        ; Calculate the address of this number (taking into account the fixup).
+        if extended and &4000
+            address = extended and &7ffe
+        else
+            address = extended and &7ffe or &8000
+        endif
+
+        ; result is a square, and so is always positive! So we need to lose
+        ; the sign bit.
+        result = ((extended^2) >> fraction_bits) and &3ffe or &8000
+
+        org address
+        equw result
     next
 }
 .squares_end
 
-save "squares", squares_start, squares_end
+save "squaren", &4000, &8000
+save "squarep", &8000, &c000

@@ -4,7 +4,7 @@ cr=0
 ci=0
 vr=0
 vi=0
-scale=4
+scale=8
 
 PROChelp
 
@@ -33,7 +33,7 @@ IF G%=141 THEN cr=cr+step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=142 THEN ci=ci+step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=143 THEN ci=ci-step/10: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=43 AND scale>1 THEN scale=scale/2: UNTIL TRUE: ENDPROC
-IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
+IF G%=45 AND scale<8 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
 IF G%=13 THEN UNTIL TRUE: ENDPROC
 IF G%=63 THEN PROChelp: UNTIL TRUE: ENDPROC
@@ -48,7 +48,7 @@ IF M% THEN COLOUR 1:PRINT " MANDEL" ELSE COLOUR 2:PRINT " JULIA"
 COLOUR 6: PRINT ''"  View"
 COLOUR 3: PRINT ;;"r=";: COLOUR 7: PRINT vr
 COLOUR 3: PRINT "i=";: COLOUR 7: PRINT vi
-COLOUR 3: PRINT "s=";: COLOUR 7: PRINT scale
+COLOUR 3: PRINT "s=";: COLOUR 7: PRINT scale/2
 COLOUR 6: PRINT ''" Cursor"
 COLOUR 3: PRINT ;;"r=";: COLOUR 7: PRINT cr
 COLOUR 3: PRINT "i=";: COLOUR 7: PRINT ci
@@ -63,12 +63,12 @@ CLS
 PROCbanner
 
 TIME=0
-!&70=vr*512
-!&72=vi*512
+!&70=FNfixed(vr)
+!&72=FNfixed(vi)
 ?&74=scale*2
 ?&75=NOT M%
-!&76=cr*512
-!&78=ci*512
+!&76=FNfixed(cr)
+!&78=FNfixed(ci)
 CALL &2000
 t=TIME/100
 PRINT TAB(0,15);
@@ -77,6 +77,11 @@ COLOUR 7: PRINT INT((128*256)/t): COLOUR 3: PRINT "   px/s"
 @%=&20105
 COLOUR 7: PRINT 't: COLOUR 3: PRINT "   secs"
 ENDPROC
+
+DEFFNfixed(r)
+r=(r*1024) AND &7FFE
+IF NOT (r AND &4000) THEN r=r OR &8000
+=r
 
 DEFPROCdrawcursor
 IF NOT M% THEN ENDPROC
