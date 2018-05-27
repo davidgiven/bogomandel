@@ -947,7 +947,7 @@ guard mc_top
 .setup_bytes_end
 
 .charset
-    incbin "ThinSet"
+    incbin "data/ThinSet"
 }
 .setscreen_end
 
