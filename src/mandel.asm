@@ -450,42 +450,101 @@ zr2_p_zi2_hi = *+1
 
 ; Fill the current box with pixelcol.
 .floodfill
-    lda boxy1
-    inc A
-    cmp boxy2
-    beq floodfill_exit
-    sta screeny
-.floodfill_yloop
+{
+    ; The margins of the box are already drawn. We can use this to avoid
+    ; having to draw stray pixels on the left and right, at the expense of
+    ; a (very cheap) overdraw.
+
     lda boxx1
-    inc A
-    inc A
-    sta screenx
+    pha
+    and #2
+    beq left_margin_even
+    inc boxx1
+    inc boxx1
+.left_margin_even
+
     lda boxx2
-    sec
-    sbc boxx1
-    bcc floodfill_exit
-    lsr A
-    beq floodfill_exit
+    pha
+    and #2
+    bne right_margin_odd
+    dec boxx2
+    dec boxx2
+.right_margin_odd
+
+    ; Don't redraw top and bottom (this is easy).
+
+    lda boxy1
+    pha
+    inc A
+    sta boxy1
+    
+    lda boxy2
+    pha
     dec A
-    beq floodfill_exit
-    bmi floodfill_exit
-    sta sidecount
+    sta boxy2
+    
+    ; Check that our box is not empty.
+
+    lda boxx1
+    cmp boxx2
+    bcs exit
+
+    lda boxy1
+    cmp boxy2
+    bcs exit
+    sta screeny
+.yloop
+    lda boxx1
+    sta screenx
     jsr calculate_screen_address
-.floodfill_xloop
+
+    ; Compute pixel colour.
+
     lda corecolour
-    sta pixelcol
-    jsr plot
-    jsr go_to_pixel_right
-    dec sidecount
-    bne floodfill_xloop
+    lsr A
+    ora corecolour
+    tay
+
+    ; Calculate length of line.
+
+    sec
+    lda boxx2
+    sbc boxx1
+    lsr A ; to physical pixels
+    lsr A ; to bytes
+    tax
+
+    lda #accon_x
+    tsb accon
+.xloop
+    tya
+    sta (screenptr)
+    clc
+    lda screenptr+0
+    adc #8
+    sta screenptr+0
+    bcc skip
+    inc screenptr+1
+.skip
+    dex
+    bpl xloop
+
+    lda #accon_x
+    trb accon
 
     lda screeny
     inc A
     sta screeny
-    cmp boxy2
-    bne floodfill_yloop
-.floodfill_exit
+    lda boxy2
+    cmp screeny
+    bcs yloop
+.exit
+    pla: sta boxy2
+    pla: sta boxy1
+    pla: sta boxx2
+    pla: sta boxx1
     rts
+}
 
 
 ; Loads screenptr with the address of the pixel at screenx/screeny.
