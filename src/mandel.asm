@@ -505,19 +505,63 @@ guard mc_top
 
 
 .hline
+{
     jsr calculate
-    jsr go_to_pixel_right
+
+    ; Moves to the next horizontal pixel.
+
+    lda screenx
+    inc A
+    sta screenx
+    ror A
+    bcs next
+
+    ; This pixel is even, so move to the next char.
+
+    clc
+    lda screenptr+0
+    adc #8
+    sta screenptr+0
+    bcc next
+    inc screenptr+1
+
+.next
     dec sidecount
     bne hline
     rts
+}
 
 
 .vline
+{
     jsr calculate
-    jsr go_to_pixel_down
+
+    ; Move to the next vertical pixel.
+
+    inc screenptr+0
+    bne noinc
+    inc screenptr+1
+.noinc
+
+    lda screeny
+    inc A
+    sta screeny
+    and #7
+    bne intrarow
+
+    clc
+    lda screenptr+0
+    adc #lo(640-8)
+    sta screenptr+0
+    lda screenptr+1
+    adc #hi(640-8)
+    sta screenptr+1
+.intrarow
+
     dec sidecount
     bne vline
     rts
+}
 
 
 ; Fill the current box with corecolour, which is corrupted.
@@ -628,57 +672,6 @@ boxy2i = zi+1
     sta screenptr+1
 
     rts
-
-
-; Given a calculated screenptr, moves to the next horizontal pixel.
-.go_to_pixel_right
-{
-    lda screenx
-    inc A
-    sta screenx
-    ror A
-    bcs pixel_is_odd
-
-    ; This pixel is even, so move to the next char.
-
-    clc
-    lda screenptr+0
-    adc #8
-    sta screenptr+0
-    bcc skip
-    inc screenptr+1
-.skip
-
-.pixel_is_odd
-    rts
-}
-
-
-; Given a calculated screenptr, moves to the next vertical pixel.
-.go_to_pixel_down:
-{
-    inc screenptr+0
-    bne skip
-    inc screenptr+1
-.skip
-
-    lda screeny
-    inc A
-    sta screeny
-    and #7
-    bne exit
-
-    clc
-    lda screenptr+0
-    adc #lo(640-8)
-    sta screenptr+0
-    lda screenptr+1
-    adc #hi(640-8)
-    sta screenptr+1
-
-.exit
-    rts
-}
 
 
 ; Copies the kernel into zero page, preserving Basic's state.
