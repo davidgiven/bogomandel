@@ -67,6 +67,100 @@ org &70
 .iterations     equb 0
 print "zero page:", ~&70, "to", ~P%
 
+; --- The kernel ------------------------------------------------------------
+
+; Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
+; calculate the colour. This is copied into zero page when we need it
+; (preserving Basic's workspace for use later).
+
+    org &0
+    guard &70
+.kernel
+    lda #ITERATIONS
+    sta iterations
+.iterator_loop
+    ldy #1              ; indexing with this accesses the high byte 
+
+    ; Calculate zr^2 + zi^2. 
+
+    clc
+    lda (zr)            ; A = low(zr^2) 
+    tax                 
+    adc (zi)            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
+    sta zr2_p_zi2_lo
+    lda (zr), y         ; A = high(zr^2) 
+    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
+    sta zr2_p_zi2_hi
+    and #&7f
+    cmp #4 << (fraction_bits-8)
+    bcs bailout
+
+    ; Calculate zr + zi. 
+
+    ; we know C is unset from the bcs above
+    lda zr+0            ; A = low(zr) 
+    adc zi+0            ; A = low(zr + zi) 
+    sta zr_p_zi+0
+    lda zr+1            ; A = high(zr) 
+    adc zi+1            ; A = high(zr + zi) + C 
+    fixup_a
+    sta zr_p_zi+1
+
+    ; Calculate zr^2 - zi^2. 
+
+    txa                 ; A = low(zr^2) 
+    sec
+    sbc (zi)            ; A = low(zr^2 - zi^2) 
+    tax
+    lda (zr), y         ; A = high(zr^2) 
+    sbc (zi), y         ; A = high(zr^2 - zi^2) 
+    sta zr2_m_zi2_hi
+
+    ; Calculate zr = (zr^2 - zi^2) + cr. 
+
+    clc
+    txa
+    adc cr+0            ; A = low(zr^2 - zi^2 + cr) 
+    sta zr+0
+zr2_m_zi2_hi = *+1
+    lda #99             ; A = high(zr^2 - zi^2) 
+    adc cr+1            ; A = high(zr^2 - zi^2 + cr) 
+    fixup_a
+    sta zr+1
+
+    ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
+
+    sec
+    lda (zr_p_zi)       ; A = low((zr + zi)^2) 
+zr2_p_zi2_lo = *+1
+    sbc #99             ; A = low((zr + zi)^2 - (zr^2 + zi^2)) 
+    tax
+    lda (zr_p_zi), y    ; A = high((zr + zi)^2) 
+zr2_p_zi2_hi = *+1
+    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2)) 
+    tay
+
+    ; Calculate zi = zi' + ci. 
+
+    clc
+    txa
+    adc ci+0
+    sta zi+0
+    tya
+    adc ci+1
+    fixup_a
+    sta zi+1
+
+    dec iterations
+    bne iterator_loop
+
+.bailout
+    rts
+.kernel_end
+
+kernel_size = kernel_end - kernel
+print "Kernel:", ~kernel_size
+
 ; --- Main program ----------------------------------------------------------
 
 clear mc_base, mc_top
@@ -78,6 +172,7 @@ guard mc_top
     ; Initialisation.
 
 .main_program_start
+    jsr kernel_in
     jsr clear_screen
     jsr build_row_table
     jsr build_col_table
@@ -106,6 +201,7 @@ guard mc_top
 
     lda #12
     jsr map_rom
+    jsr kernel_out
     rts
 
 ; Maps the ROM in A.
@@ -329,8 +425,12 @@ guard mc_top
     sta ci+1
 .not_julia
 
-    jsr mandel
-    lda pixelcol
+    jsr kernel
+    lda iterations
+    and #7
+    tax
+    lda palette, X
+    sta pixelcol
     pha
     jsr plot
     pla
@@ -341,96 +441,6 @@ guard mc_top
     ora colourflag
     sta colourflag
 
-    rts
-
-
-; Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
-; calculate the colour.
-.mandel
-    lda #ITERATIONS
-    sta iterations
-.iterator_loop
-    ldy #1              ; indexing with this accesses the high byte 
-
-    ; Calculate zr^2 + zi^2. 
-
-    clc
-    lda (zr)            ; A = low(zr^2) 
-    tax                 
-    adc (zi)            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
-    sta zr2_p_zi2_lo
-    lda (zr), y         ; A = high(zr^2) 
-    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
-    sta zr2_p_zi2_hi
-    and #&7f
-    cmp #4 << (fraction_bits-8)
-    bcs bailout
-
-    ; Calculate zr + zi. 
-
-    ; we know C is unset from the bcs above
-    lda zr+0            ; A = low(zr) 
-    adc zi+0            ; A = low(zr + zi) 
-    sta zr_p_zi+0
-    lda zr+1            ; A = high(zr) 
-    adc zi+1            ; A = high(zr + zi) + C 
-    fixup_a
-    sta zr_p_zi+1
-
-    ; Calculate zr^2 - zi^2. 
-
-    txa                 ; A = low(zr^2) 
-    sec
-    sbc (zi)            ; A = low(zr^2 - zi^2) 
-    tax
-    lda (zr), y         ; A = high(zr^2) 
-    sbc (zi), y         ; A = high(zr^2 - zi^2) 
-    sta zr2_m_zi2_hi
-
-    ; Calculate zr = (zr^2 - zi^2) + cr. 
-
-    clc
-    txa
-    adc cr+0            ; A = low(zr^2 - zi^2 + cr) 
-    sta zr+0
-zr2_m_zi2_hi = *+1
-    lda #99             ; A = high(zr^2 - zi^2) 
-    adc cr+1            ; A = high(zr^2 - zi^2 + cr) 
-    fixup_a
-    sta zr+1
-
-    ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
-
-    sec
-    lda (zr_p_zi)       ; A = low((zr + zi)^2) 
-zr2_p_zi2_lo = *+1
-    sbc #99             ; A = low((zr + zi)^2 - (zr^2 + zi^2)) 
-    tax
-    lda (zr_p_zi), y    ; A = high((zr + zi)^2) 
-zr2_p_zi2_hi = *+1
-    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2)) 
-    tay
-
-    ; Calculate zi = zi' + ci. 
-
-    clc
-    txa
-    adc ci+0
-    sta zi+0
-    tya
-    adc ci+1
-    fixup_a
-    sta zi+1
-
-    dec iterations
-    bne iterator_loop
-
-.bailout
-    lda iterations
-    and #7
-    tax
-    lda palette, X
-    sta pixelcol
     rts
 
 
@@ -667,6 +677,34 @@ zr2_p_zi2_hi = *+1
     rts
 
 
+; Copies the kernel into zero page, preserving Basic's state.
+.kernel_in
+{
+    ldx #kernel_size-1
+.loop
+    lda kernel, X
+    sta basic_state, X
+    lda kernel_data, X
+    sta kernel, X
+    dex
+    bpl loop
+    rts
+}
+
+
+; Copies Basic's state back into zero page.
+.kernel_out
+{
+    ldx #kernel_size-1
+.loop
+    lda basic_state, X
+    sta kernel, X
+    dex
+    bpl loop
+    rts
+}
+
+
 ; Clears the screen between renders.
 .clear_screen
 {
@@ -830,6 +868,10 @@ zr2_p_zi2_hi = *+1
     equb &A8
     equb &AA
 
+.kernel_data
+    skip kernel_size
+    copyblock kernel, kernel_end, kernel_data
+
 .main_program_end
 
 ; Uninitialised data follows.
@@ -842,6 +884,7 @@ zr2_p_zi2_hi = *+1
 .col_table_hi       skip &80
 .row_table_lo       skip &100
 .row_table_hi       skip &100
+.basic_state        skip kernel_size
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
 save "mandel", main_program_start, main_program_end
