@@ -251,14 +251,13 @@ guard mc_top
     ; The line drawing routines don't draw the last pixel, so do that
     ; specially. (We need to probe one pixel anyway so it's no bad
     ; thing.)
+
     lda boxx2
     sta screenx
     lda boxy2
     sta screeny
     jsr calculate_screen_address
     jsr calculate
-    sta corecolour
-
     sta corecolour
     stz colourflag
 
@@ -268,8 +267,8 @@ guard mc_top
     sta screenx
     lda boxy1
     sta screeny
-    lda boxx2
     sec
+    lda boxx2
     sbc boxx1
     sta sidecount
     jsr calculate_screen_address
@@ -277,26 +276,13 @@ guard mc_top
 
     ; Right stroke
 
-    ; screenx, screeny preserved
-    lda boxy2
+    ; screenx, screeny point at RHS of stroke
     sec
+    lda boxy2
     sbc boxy1
     sta sidecount
     jsr calculate_screen_address
     jsr vline
-
-    ; Bottom stroke
-
-    lda boxy2
-    sta screeny
-    lda boxx1
-    sta screenx
-    lda boxx2
-    sec
-    sbc boxx1
-    sta sidecount
-    jsr calculate_screen_address
-    jsr hline
 
     ; Left stroke
 
@@ -304,12 +290,22 @@ guard mc_top
     sta screenx
     lda boxy1
     sta screeny
-    lda boxy2
     sec
+    lda boxy2
     sbc boxy1
     sta sidecount
     jsr calculate_screen_address
     jsr vline
+
+    ; Bottom stroke
+
+    ; screenx, screeny point at bottom of stroke
+    sec
+    lda boxx2
+    sbc boxx1
+    sta sidecount
+    jsr calculate_screen_address
+    jsr hline
 
     ; Are all the sides the same colour? If so, don't bother recursing.
 
@@ -353,6 +349,20 @@ guard mc_top
     jsr box
 
     pla: sta boxy2
+    ;pla: sta boxx2 --- immediately pushed back
+
+    ; Recurse into bottom left.
+
+    ;lda boxx2: pha
+    lda boxy1: pha
+    
+    lda midx
+    sta boxx2
+    lda midy
+    sta boxy1
+    jsr box
+
+    pla: sta boxy1
     pla: sta boxx2
 
     ; Recurse into bottom right.
@@ -367,25 +377,11 @@ guard mc_top
     jsr box
 
     pla: sta boxy1
-    pla: sta boxx1
-
-    ; Recurse into bottom left.
-
-    lda boxx2: pha
-    lda boxy1: pha
-    
-    lda midx
-    sta boxx2
-    lda midy
-    sta boxy1
-    jsr box
-
-    pla: sta boxy1
-    pla: sta boxx2
+    ;pla: sta boxx1 --- immediately pushed back
 
     ; Recurse into top right.
 
-    lda boxx1: pha
+    ;lda boxx1: pha
     lda boxy2: pha
 
     lda midx
@@ -409,7 +405,19 @@ guard mc_top
 ; Returns the pixel colour in A.
 .calculate
 {
-    jsr pick ; colour -> A
+    ; Pick colour from screenx/screeny (calculate_screen_address must have been
+    ; called) into A.
+
+    lda screenx
+    ror A ; odd/even bit to C
+    lda (screenptr)
+    ; Unshifted values refer to the *left* hand pixel, so odd pixels
+    ; need adjusting.
+    bcc pick_even_pixel
+    asl A
+.pick_even_pixel
+    and #&AA
+    tax
     cmp #&80
     bne dont_calculate
 
@@ -464,12 +472,28 @@ guard mc_top
     and #7
     tax
     lda palette, X
-    sta temp
-    jsr plot
-    lda temp
-
-.dont_calculate:
     tax
+
+    ; Plot colour A to the current pixel.
+
+    sta pixelcol
+
+    ; Unshifted values refer to the *left* hand pixel, so odd pixels
+    ; need adjusting.
+    lda screenx     ; Is this an even pixel?
+    ror A           ; odd/even bit to C
+    lda #&55        ; a = pixel mask
+    bcc plot_even_pixel
+    lsr pixelcol
+    asl A
+.plot_even_pixel
+    and (screenptr)
+    ora pixelcol
+    sta (screenptr)
+
+    ; pixel colour in X on entry
+.dont_calculate:
+    txa
     sec
     sbc corecolour
     ora colourflag
@@ -655,45 +679,6 @@ boxy2i = zi+1
 .exit
     rts
 }
-
-
-; Plot colour A to the pixel at screenx/screeny (calculate_screen_address must
-; have been called). Corrupts A!
-.plot:
-    sta pixelcol
-    lda #&55
-    sta pixelmask
-
-    ; Unshifted values refer to the *left* hand pixel, so odd pixels
-    ; need adjusting.
-    lda screenx     ; Is this an even pixel?
-    ror A           ; odd/even bit to C
-    bcc plot_even_pixel
-
-    lsr pixelcol
-    asl pixelmask
-
-.plot_even_pixel
-    lda (screenptr)
-    and pixelmask
-    ora pixelcol
-    sta (screenptr)
-    rts
-
-
-; Pick colour from screenx/screeny (calculate_screen_address must have been
-; called) into A.
-.pick
-    lda screenx
-    ror A ; odd/even bit to C
-    lda (screenptr)
-    ; Unshifted values refer to the *left* hand pixel, so odd pixels
-    ; need adjusting.
-    bcc pick_even_pixel
-    asl A
-.pick_even_pixel
-    and #&AA
-    rts
 
 
 ; Copies the kernel into zero page, preserving Basic's state.
