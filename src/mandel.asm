@@ -400,6 +400,7 @@ guard mc_top
 
 ; Given a screenx/screeny and a calculated screen position, lazily renders the point.
 .calculate
+{
     jsr pick
     lda pixelcol
     cmp #&80
@@ -407,6 +408,29 @@ guard mc_top
 
     ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
 
+    lda julia
+    bne setup_julia
+
+.setup_mandelbrot
+    ldx screenx
+    lda pixels_to_zr_lo, X
+    sta zr+0
+    sta kernel_cr_lo
+    lda pixels_to_zr_hi, X
+    sta zr+1
+    sta kernel_cr_hi
+
+    ldy screeny
+    lda pixels_to_zi_lo, Y
+    sta zi+0
+    sta kernel_ci_lo
+    lda pixels_to_zi_hi, Y
+    sta zi+1
+    sta kernel_ci_hi
+
+    bra go
+
+.setup_julia
     ldx screenx
     lda pixels_to_zr_lo, X
     sta zr+0
@@ -419,20 +443,7 @@ guard mc_top
     lda pixels_to_zi_hi, Y
     sta zi+1
 
-    ; If this is a Mandelbrot set, copy z to c. Otherwise leave c untouched.
-
-    lda julia
-    bne not_julia
-    lda zr+0
-    sta kernel_cr_lo
-    lda zr+1
-    sta kernel_cr_hi
-    lda zi+0
-    sta kernel_ci_lo
-    lda zi+1
-    sta kernel_ci_hi
-.not_julia
-
+.go
     jsr kernel
     lda iterations
     and #7
@@ -450,6 +461,7 @@ guard mc_top
     sta colourflag
 
     rts
+}
 
 
 .hline
