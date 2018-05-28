@@ -208,7 +208,7 @@ guard mc_top
     lda #0
     sta boxx1
     sta boxy1
-    lda #255
+    lda #127
     sta boxx2
     lda #255
     sta boxy2
@@ -264,7 +264,6 @@ guard mc_top
     lda boxx2
     sec
     sbc boxx1
-    lsr A
     sta sidecount
     jsr calculate_screen_address
     jsr hline
@@ -288,7 +287,6 @@ guard mc_top
     lda boxx2
     sec
     sbc boxx1
-    lsr A
     sta sidecount
     jsr calculate_screen_address
     jsr hline
@@ -320,25 +318,18 @@ guard mc_top
 
     ; Calculate centre point.
 
-    lda boxx1
-    lsr A
-    sta temp
-    lda boxx2
-    lsr A
     clc
-    adc temp
-    and #&FE ; round down
+    lda boxx1
+    adc boxx2 ; produces 9-bit result in C:A
+    ror A     ; 9-bit right shift
     sta midx
     cmp boxx1
     beq box_too_small
     
-    lda boxy1
-    lsr A
-    sta temp
-    lda boxy2
-    lsr A
     clc
-    adc temp
+    lda boxy1
+    adc boxy2 ; produces 9-bit result in C:A
+    ror A     ; 9-bit right shift
     sta midy
     cmp boxy1
     beq box_too_small
@@ -414,7 +405,7 @@ guard mc_top
     cmp #&80
     bne dont_calculate
 
-    ; Turns screenx/screeny (0..255, midpoint 0x80) into ci/cr (-2..2).
+    ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
 
     ldx screenx
     lda pixels_to_zr_lo, X
@@ -468,6 +459,7 @@ guard mc_top
     bne hline
     rts
 
+
 .vline
     jsr calculate
     jsr go_to_pixel_down
@@ -480,22 +472,20 @@ guard mc_top
 .floodfill
 {
     ; The margins of the box are already drawn. We can use this to avoid
-    ; having to draw stray pixels on the left and right, at the expense of
-    ; a (very cheap) overdraw.
+    ; the (expensive) cost of having to draw stray pixels on the left and
+    ; right, at the expense of a (very cheap) overdraw.
 
     lda boxx1
     pha
-    and #2
-    beq left_margin_even
-    inc boxx1
+    ror A
+    bcc left_margin_even
     inc boxx1
 .left_margin_even
 
     lda boxx2
     pha
-    and #2
-    bne right_margin_odd
-    dec boxx2
+    ror A
+    bcs right_margin_odd
     dec boxx2
 .right_margin_odd
 
@@ -538,7 +528,6 @@ guard mc_top
     sec
     lda boxx2
     sbc boxx1
-    lsr A ; to physical pixels
     lsr A ; to bytes
     tax
 
@@ -578,8 +567,7 @@ guard mc_top
 ; Loads screenptr with the address of the pixel at screenx/screeny.
 .calculate_screen_address
     lda screenx
-    lsr A ; to physical pixels
-    lsr A ; to pixels/2
+    lsr A ; to bytes
     tax
 
     ldy screeny
@@ -594,51 +582,55 @@ guard mc_top
     rts
 
 
-; Given a calculated screenptr, moves to the next horizontal physical pixel
-; (which is two logical pixels because MODE 2).
+; Given a calculated screenptr, moves to the next horizontal pixel.
 .go_to_pixel_right
+{
     lda screenx
     inc A
-    inc A
     sta screenx
-    and #3
-    bne go_to_pixel_right_exit
+    ror A
+    bcs pixel_is_odd
+
+    ; This pixel is even, so move to the next char.
 
     clc
     lda screenptr+0
     adc #8
     sta screenptr+0
-    bcc dont_add_screenptr
+    bcc skip
     inc screenptr+1
-.dont_add_screenptr
+.skip
 
-.go_to_pixel_right_exit
+.pixel_is_odd
     rts
+}
 
 
 ; Given a calculated screenptr, moves to the next vertical pixel.
 .go_to_pixel_down:
+{
     inc screenptr+0
-    bne dont_increment_screenptr
+    bne skip
     inc screenptr+1
-.dont_increment_screenptr
+.skip
 
     lda screeny
     inc A
     sta screeny
     and #7
-    bne go_to_pixel_down_exit
+    bne exit
 
     clc
     lda screenptr+0
-    adc #(640-8) MOD 256
+    adc #lo(640-8)
     sta screenptr+0
     lda screenptr+1
-    adc #(640-8) DIV 256
+    adc #hi(640-8)
     sta screenptr+1
 
-.go_to_pixel_down_exit
+.exit
     rts
+}
 
 
 ; Plot colour pixelcol to the pixel at screenx/screeny (calculate_screen_address must
@@ -650,7 +642,6 @@ guard mc_top
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
     lda screenx     ; Is this an even pixel?
-    ror A
     ror A           ; odd/even bit to C
     bcc plot_even_pixel
 
@@ -678,7 +669,6 @@ guard mc_top
     tsb accon
 
     lda screenx
-    ror A
     ror A ; odd/even bit to C
     lda (screenptr)
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
@@ -773,8 +763,31 @@ guard mc_top
     sbc temp+1
     sta zi+1
 
+    ; Y pixels go from 0 to 255, with 0x80 being the midpoint.
+
+    ldy #0
+.yloop
+    clc
+    lda zi+0
+    sta pixels_to_zi_lo, Y
+    adc step
+    sta zi+0
+
+    lda zi+1
+    php: fixup_a: plp
+    sta pixels_to_zi_hi, Y
+    adc #0
+    sta zi+1
+
+    iny
+    bne yloop
+
+    ; X pixels go from 0 to 127, with 0x40 being the midpoint, using double the step.
+
+    rol step
+
     ldx #0
-.build_pixels_to_z_loop
+.xloop
     clc
     lda zr+0
     sta pixels_to_zr_lo, X
@@ -787,29 +800,20 @@ guard mc_top
     adc #0
     sta zr+1
 
-    clc
-    lda zi+0
-    sta pixels_to_zi_lo, X
-    adc step
-    sta zi+0
-
-    lda zi+1
-    php: fixup_a: plp
-    sta pixels_to_zi_hi, X
-    adc #0
-    sta zi+1
-
     inx
-    bne build_pixels_to_z_loop
+    bpl xloop ; exit at x=128
+
+    ror step ; remember to put step back the way it was!
     rts
 
 
-; Build the column table (pixels/2 to address offset).
+; Build the column table (bytes to address offset).
 .build_col_table
+{
     stz screenptr+0
     stz screenptr+1
     ldx #0
-.build_col_table_loop
+.loop
     clc
     lda screenptr+0
     sta col_table_lo, X
@@ -822,8 +826,10 @@ guard mc_top
     sta screenptr+1
 
     inx
-    bpl build_col_table_loop ; loop up to 128
+    cpx #64
+    bne loop
     rts
+}
 
 
 ; Build the row table (pixels to address).
@@ -893,14 +899,14 @@ guard mc_top
 
 ; Uninitialised data follows.
 
-.pixels_to_zr_lo    skip &100
-.pixels_to_zr_hi    skip &100
 .pixels_to_zi_lo    skip &100
 .pixels_to_zi_hi    skip &100
-.col_table_lo       skip &80
-.col_table_hi       skip &80
-.row_table_lo       skip &100
+.row_table_lo       skip &100 ; pixels; 0..255
 .row_table_hi       skip &100
+.pixels_to_zr_lo    skip &80
+.pixels_to_zr_hi    skip &80
+.col_table_lo       skip &40 ; bytes; 0..63
+.col_table_hi       skip &40
 .basic_state        skip kernel_size
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
