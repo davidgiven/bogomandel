@@ -499,6 +499,12 @@ guard mc_top
 ; Fill the current box with corecolour, which is corrupted.
 .floodfill
 {
+; Hacky temporary storage, reusing zr and zi in the kernel.
+boxx1i = zr+0
+boxy1i = zr+1
+boxx2i = zi+0
+boxy2i = zi+1
+
     ; Compute pixel colour.
 
     lda corecolour
@@ -511,51 +517,49 @@ guard mc_top
     ; right, at the expense of a (very cheap) overdraw.
 
     lda boxx1
-    pha
-    ror A
-    bcc left_margin_even
-    inc boxx1
+    bit #1
+    beq left_margin_even
+    inc A
 .left_margin_even
+    sta boxx1i
 
     lda boxx2
-    pha
-    ror A
-    bcs right_margin_odd
-    dec boxx2
+    bit #1
+    bne right_margin_odd
+    dec A
 .right_margin_odd
+    sta boxx2i
 
     ; Don't redraw top and bottom (this is easy).
 
     lda boxy1
-    pha
     inc A
-    sta boxy1
+    sta boxy1i
     
     lda boxy2
-    pha
     dec A
-    sta boxy2
+    sta boxy2i
     
     ; Check that our box is not empty.
 
-    lda boxx1
-    cmp boxx2
+    lda boxx1i
+    cmp boxx2i
     bcs exit
 
-    lda boxy1
-    cmp boxy2
+    lda boxy1i
+    cmp boxy2i
     bcs exit
     sta screeny
 .yloop
-    lda boxx1
+    lda boxx1i
     sta screenx
     jsr calculate_screen_address
 
     ; Calculate length of line.
 
     sec
-    lda boxx2
-    sbc boxx1
+    lda boxx2i
+    sbc boxx1i
     lsr A ; to bytes
     tax
 
@@ -576,14 +580,10 @@ guard mc_top
     lda screeny
     inc A
     sta screeny
-    lda boxy2
+    lda boxy2i
     cmp screeny
     bcs yloop
 .exit
-    pla: sta boxy2
-    pla: sta boxy1
-    pla: sta boxx2
-    pla: sta boxx1
     rts
 }
 
