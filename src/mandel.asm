@@ -257,8 +257,8 @@ guard mc_top
     sta screeny
     jsr calculate_screen_address
     jsr calculate
+    sta corecolour
 
-    lda pixelcol
     sta corecolour
     stz colourflag
 
@@ -406,10 +406,10 @@ guard mc_top
 
 
 ; Given a screenx/screeny and a calculated screen position, lazily renders the point.
+; Returns the pixel colour in A.
 .calculate
 {
-    jsr pick
-    lda pixelcol
+    jsr pick ; colour -> A
     cmp #&80
     bne dont_calculate
 
@@ -464,16 +464,17 @@ guard mc_top
     and #7
     tax
     lda palette, X
-    sta pixelcol
-    pha
+    sta temp
     jsr plot
-    pla
+    lda temp
 
 .dont_calculate:
+    tax
     sec
     sbc corecolour
     ora colourflag
     sta colourflag
+    txa
 
     rts
 }
@@ -495,9 +496,16 @@ guard mc_top
     rts
 
 
-; Fill the current box with pixelcol.
+; Fill the current box with corecolour, which is corrupted.
 .floodfill
 {
+    ; Compute pixel colour.
+
+    lda corecolour
+    lsr A
+    ora corecolour
+    sta corecolour
+
     ; The margins of the box are already drawn. We can use this to avoid
     ; the (expensive) cost of having to draw stray pixels on the left and
     ; right, at the expense of a (very cheap) overdraw.
@@ -543,13 +551,6 @@ guard mc_top
     sta screenx
     jsr calculate_screen_address
 
-    ; Compute pixel colour.
-
-    lda corecolour
-    lsr A
-    ora corecolour
-    tay
-
     ; Calculate length of line.
 
     sec
@@ -558,6 +559,7 @@ guard mc_top
     lsr A ; to bytes
     tax
 
+    ldy corecolour
 .xloop
     tya
     sta (screenptr)
@@ -655,9 +657,10 @@ guard mc_top
 }
 
 
-; Plot colour pixelcol to the pixel at screenx/screeny (calculate_screen_address must
-; have been called). Corrupts pixelcol!
+; Plot colour A to the pixel at screenx/screeny (calculate_screen_address must
+; have been called). Corrupts A!
 .plot:
+    sta pixelcol
     lda #&55
     sta pixelmask
 
@@ -679,7 +682,7 @@ guard mc_top
 
 
 ; Pick colour from screenx/screeny (calculate_screen_address must have been
-; called) into pixelcol.
+; called) into A.
 .pick
     lda screenx
     ror A ; odd/even bit to C
@@ -690,7 +693,6 @@ guard mc_top
     asl A
 .pick_even_pixel
     and #&AA
-    sta pixelcol
     rts
 
 
