@@ -48,8 +48,6 @@ org zp_start
 .screenx        equb 0
 .screeny        equb 0
 
-.pixelcol       equb 0
-.pixelmask      equb 0
 .temp           equw 0
 
 .boxx1          equb 0
@@ -64,7 +62,7 @@ org zp_start
 .colourflag     equb 0
 
 .iterations     equb 0
-print "zero page:", ~&70, "to", ~P%
+print "zero page:", ~zp_start, "to", ~P%
 
 ; --- The kernel ------------------------------------------------------------
 
@@ -356,8 +354,8 @@ guard mc_top
     ;lda boxx2: pha
     lda boxy1: pha
     
-    lda midx
-    sta boxx2
+    ;lda midx --- already in boxx2.
+    ;sta boxx2
     lda midy
     sta boxy1
     jsr box
@@ -384,8 +382,8 @@ guard mc_top
     ;lda boxx1: pha
     lda boxy2: pha
 
-    lda midx
-    sta boxx1
+    ;lda midx --- midx already in boxx1.
+    ;sta boxx1
     lda midy
     sta boxy2
     jsr box
@@ -418,8 +416,7 @@ guard mc_top
 .pick_even_pixel
     and #&AA
     tax
-    cmp #&80
-    bne dont_calculate
+    bpl dont_calculate
 
     ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
 
@@ -476,7 +473,7 @@ guard mc_top
 
     ; Plot colour A to the current pixel.
 
-    sta pixelcol
+    sta temp
 
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
@@ -484,11 +481,11 @@ guard mc_top
     ror A           ; odd/even bit to C
     lda #&55        ; a = pixel mask
     bcc plot_even_pixel
-    lsr pixelcol
+    lsr temp
     asl A
 .plot_even_pixel
     and (screenptr)
-    ora pixelcol
+    ora temp
     sta (screenptr)
 
     ; pixel colour in X on entry
