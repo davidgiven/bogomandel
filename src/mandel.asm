@@ -188,6 +188,11 @@ guard mc_top
     lda #4
     jsr map_rom
 
+    ; Map the framebuffer.
+
+    lda #accon_x
+    tsb accon
+
     ; Copy input parameters into the kernel.
 
     lda cr+0
@@ -214,8 +219,10 @@ guard mc_top
     sta boxy2
     jsr box
 
-    ; Put BASIC back in the ROM slot to avoid hilarity on exit.
+    ; Put things back the way they were.
 
+    lda #accon_x
+    trb accon
     lda #12
     jsr map_rom
     jsr kernel_out
@@ -444,7 +451,15 @@ guard mc_top
     sta zi+1
 
 .go
+    ; Map the lookup tables.
+    lda #accon_x
+    trb accon
+    
     jsr kernel
+
+    lda #accon_x
+    tsb accon
+    
     lda iterations
     and #7
     tax
@@ -543,8 +558,6 @@ guard mc_top
     lsr A ; to bytes
     tax
 
-    lda #accon_x
-    tsb accon
 .xloop
     tya
     sta (screenptr)
@@ -557,9 +570,6 @@ guard mc_top
 .skip
     dex
     bpl xloop
-
-    lda #accon_x
-    trb accon
 
     lda screeny
     inc A
@@ -661,25 +671,16 @@ guard mc_top
     asl pixelmask
 
 .plot_even_pixel
-    lda #accon_x
-    tsb accon
-
     lda (screenptr)
     and pixelmask
     ora pixelcol
     sta (screenptr)
-
-    lda #accon_x
-    trb accon
     rts
 
 
 ; Pick colour from screenx/screeny (calculate_screen_address must have been
 ; called) into pixelcol.
 .pick
-    lda #accon_x
-    tsb accon
-
     lda screenx
     ror A ; odd/even bit to C
     lda (screenptr)
@@ -690,9 +691,6 @@ guard mc_top
 .pick_even_pixel
     and #&AA
     sta pixelcol
-
-    lda #accon_x
-    trb accon
     rts
 
 
