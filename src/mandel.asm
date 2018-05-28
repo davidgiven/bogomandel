@@ -61,9 +61,6 @@ org &70
 .corecolour     equb 0
 .colourflag     equb 0
 
-.zi             equw 0
-.zr             equw 0
-.zr_p_zi        equw 0
 .iterations     equb 0
 print "zero page:", ~&70, "to", ~P%
 
@@ -84,9 +81,11 @@ print "zero page:", ~&70, "to", ~P%
     ; Calculate zr^2 + zi^2. 
 
     clc
-    lda (zr)            ; A = low(zr^2) 
+zr = *+1
+    lda 9999            ; A = low(zr^2) 
     tax                 
-    adc (zi)            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
+zi = *+1
+    adc 9999            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
@@ -120,18 +119,21 @@ print "zero page:", ~&70, "to", ~P%
 
     clc
     txa
-    adc cr+0            ; A = low(zr^2 - zi^2 + cr) 
+kernel_cr_lo = *+1
+    adc #99             ; A = low(zr^2 - zi^2 + cr) 
     sta zr+0
 zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
-    adc cr+1            ; A = high(zr^2 - zi^2 + cr) 
+kernel_cr_hi = *+1
+    adc #99             ; A = high(zr^2 - zi^2 + cr) 
     fixup_a
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
 
     sec
-    lda (zr_p_zi)       ; A = low((zr + zi)^2) 
+zr_p_zi = *+1
+    lda 9999            ; A = low((zr + zi)^2) 
 zr2_p_zi2_lo = *+1
     sbc #99             ; A = low((zr + zi)^2 - (zr^2 + zi^2)) 
     tax
@@ -144,10 +146,12 @@ zr2_p_zi2_hi = *+1
 
     clc
     txa
-    adc ci+0
+kernel_ci_lo = *+1
+    adc #99
     sta zi+0
     tya
-    adc ci+1
+kernel_ci_hi = *+1
+    adc #99
     fixup_a
     sta zi+1
 
@@ -181,6 +185,17 @@ guard mc_top
 
     lda #4
     jsr map_rom
+
+    ; Copy input parameters into the kernel.
+
+    lda cr+0
+    sta kernel_cr_lo
+    lda cr+1
+    sta kernel_cr_hi
+    lda ci+0
+    sta kernel_ci_lo
+    lda ci+1
+    sta kernel_ci_hi
 
     ; Compute zoom table.
 
@@ -416,13 +431,13 @@ guard mc_top
     lda julia
     bne not_julia
     lda zr+0
-    sta cr+0
+    sta kernel_cr_lo
     lda zr+1
-    sta cr+1
+    sta kernel_cr_hi
     lda zi+0
-    sta ci+0
+    sta kernel_ci_lo
     lda zi+1
-    sta ci+1
+    sta kernel_ci_hi
 .not_julia
 
     jsr kernel
