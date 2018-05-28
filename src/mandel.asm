@@ -12,6 +12,7 @@ romsel_ram = &F4
 
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
+zp_start = &74
 mc_base = &2000
 mc_top  = &3000
 
@@ -25,16 +26,17 @@ putbasic "src/shell.bas", "shell"
 ; pointer.
 macro fixup_a ; corrupts flags!
 {
-    asl A
-    cmp #&80 ; sign bit -> C
-    ror A
-    eor #&80 ; flip sign bit
+    ora #&80 ; set top bit
+    bit #&40 ; bit6 -> z
+    beq skip
+    and #&7f ; clear top bit if bit6 is set
+.skip
 }
 endmacro
 
 ; --- Global page ------------------------------------------------------------
 
-org &70
+org zp_start
 .centerx        equw 0
 .centery        equw 0
 .step           equb 0
@@ -71,7 +73,7 @@ print "zero page:", ~&70, "to", ~P%
 ; (preserving Basic's workspace for use later).
 
     org &0
-    guard &70
+    guard zp_start
 .kernel
     lda #ITERATIONS
     sta iterations

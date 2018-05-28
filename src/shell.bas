@@ -1,4 +1,5 @@
 
+Z%=&74
 M%=-1
 cr=0
 ci=0
@@ -63,12 +64,12 @@ CLS
 PROCbanner
 
 TIME=0
-!&70=FNfixed(vr)
-!&72=FNfixed(vi)
-?&74=scale*2
-?&75=NOT M%
-!&76=FNfixed(cr)
-!&78=FNfixed(ci)
+Z%!0=FNfixed(vr)
+Z%!2=FNfixed(vi)
+Z%?4=scale*2
+Z%?5=NOT M%
+Z%!6=FNfixed(cr)
+Z%!8=FNfixed(ci)
 CALL &2000
 t=TIME/100
 PRINT TAB(0,15);
