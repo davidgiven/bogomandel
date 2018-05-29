@@ -9,6 +9,7 @@ osbyte     = &FFF4
 accon      = &FE34
 romsel     = &FE30
 romsel_ram = &F4
+evntv      = &220
 
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
@@ -62,6 +63,7 @@ org zp_start
 .colourflag     equb 0
 
 .iterations     equb 0
+.exitflag       equb 0
 print "zero page:", ~zp_start, "to", ~P%
 
 ; --- The kernel ------------------------------------------------------------
@@ -218,6 +220,21 @@ guard mc_top
 
     jsr build_pixels_to_z_table
 
+    ; Install the event handler for testing for a keypress.
+
+    lda #&ff
+    sta exitflag
+    sei
+    lda evntv+0
+    sta next_event+0
+    lda evntv+1
+    sta next_event+1
+    lda #lo(event_handler)
+    sta evntv+0
+    lda #hi(event_handler)
+    sta evntv+1
+    cli
+
     ; Draw.
 
     lda #0
@@ -230,6 +247,13 @@ guard mc_top
     jsr box
 
     ; Put things back the way they were.
+
+    sei
+    lda next_event+0
+    sta evntv+0
+    lda next_event+1
+    sta evntv+1
+    cli
 
     lda #accon_x
     trb accon
@@ -244,6 +268,7 @@ guard mc_top
     sta romsel
     sta romsel_ram
     cli
+.handy_rts
     rts
 
 
@@ -251,12 +276,8 @@ guard mc_top
 {
     ; Check for keypress.
 
-    lda #&98    ; check buffer status
-    ldx #&00    ; keyboard buffer
-    jsr osbyte
-    bcs continue
-    rts
-.continue
+    bit exitflag
+    bpl handy_rts
 
     ; The line drawing routines don't draw the last pixel, so do that
     ; specially. (We need to probe one pixel anyway so it's no bad
@@ -852,6 +873,20 @@ boxy2i = zi+1
     bra build_row_table_loop
 .build_row_table_loop_exit
     rts
+
+
+; The keypress event handler.
+.event_handler
+    php
+    cmp #2 ; character entering input buffer
+    bne event_handler_exit
+    cpx #0 ; keyboard buffer
+    bne event_handler_exit
+    stz exitflag
+.event_handler_exit
+    plp
+next_event = *+1
+    jmp 9999
 
 
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.

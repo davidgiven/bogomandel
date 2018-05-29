@@ -12,6 +12,7 @@ PROCcenter("Årepositories is hard)", 24, 1)
 *fx 21,0
 *fx 4,2
 *fx 229,1,0
+*fx 14,2
 *key 12 |!|A
 *key 13 |!|B
 *key 14 |!|C
