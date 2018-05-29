@@ -447,14 +447,24 @@ guard mc_top
     asl A
 .pick_even_pixel
     and #&AA
-    bpl dont_calculate
+    bmi needs_calculation
 
+    ; This pixel is cached, so just check the colour and exit.
+{
+    cmp corecolour
+    beq skip
+    stz colourflag
+.skip
+    rts
+}
+
+    ; This pixel's not cached, so we have to calculate it after all.
+.needs_calculation
     ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
-
     lda julia
     bne setup_julia
 
-.setup_mandelbrot
+    ; Mandelbrot setup: x/y -> zr, cr, zi, cr
     ldx screenx
     lda pixels_to_zr_lo, X
     sta zr+0
@@ -474,6 +484,7 @@ guard mc_top
     bra go
 
 .setup_julia
+    ; Julia setup: x/y -> zr, zi; leave cr, ci unchanged
     ldx screenx
     lda pixels_to_zr_lo, X
     sta zr+0
@@ -500,10 +511,16 @@ guard mc_top
     and #7
     tax
     lda palette, X
-    tax
+{
+    cmp corecolour
+    beq skip
+    stz colourflag
+.skip
+}
 
     ; Plot colour A to the current pixel.
 
+    tax
     sta temp
 
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
@@ -519,14 +536,8 @@ guard mc_top
     ora temp
     sta (screenptr)
 
-    ; pixel colour in A on entry
+    ; pixel colour in A on exit
     txa
-.dont_calculate:
-    cmp corecolour
-    bne different_colours
-    rts
-.different_colours
-    stz colourflag
     rts
 }
 
