@@ -889,6 +889,7 @@ next_event = *+1
 
 
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
+align 16
 .palette
     equb &00
     equb &02
@@ -915,6 +916,7 @@ next_event = *+1
 
 ; Uninitialised data follows.
 
+align &100
 .pixels_to_zi_lo    skip &100
 .pixels_to_zi_hi    skip &100
 .row_table_lo       skip &100 ; pixels; 0..255
