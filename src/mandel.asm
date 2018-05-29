@@ -167,6 +167,18 @@ print "Kernel:", ~kernel_size
 
 ; --- Main program ----------------------------------------------------------
 
+; Given a screen address in X and Y, updates screenptr.
+macro calculate_screen_address
+    clc
+    lda row_table_lo, Y
+    adc col_table_lo, X
+    sta screenptr+0
+    lda row_table_hi, Y
+    adc col_table_hi, X
+    sta screenptr+1
+endmacro
+
+
 clear mc_base, mc_top
 org mc_base
 guard mc_top
@@ -250,26 +262,26 @@ guard mc_top
     ; specially. (We need to probe one pixel anyway so it's no bad
     ; thing.)
 
-    lda boxx2
-    sta screenx
-    lda boxy2
-    sta screeny
-    jsr calculate_screen_address
+    ldx boxx2
+    stx screenx
+    ldy boxy2
+    sty screeny
+    calculate_screen_address
     jsr calculate
     sta corecolour
     stz colourflag
 
     ; Top stroke
 
-    lda boxx1
-    sta screenx
-    lda boxy1
-    sta screeny
+    ldx boxx1
+    stx screenx
+    ldy boxy1
+    sty screeny
     sec
     lda boxx2
     sbc boxx1
     sta sidecount
-    jsr calculate_screen_address
+    calculate_screen_address
     jsr hline
 
     ; Right stroke
@@ -279,20 +291,19 @@ guard mc_top
     lda boxy2
     sbc boxy1
     sta sidecount
-    jsr calculate_screen_address
     jsr vline
 
     ; Left stroke
 
-    lda boxx1
-    sta screenx
-    lda boxy1
-    sta screeny
+    ldx boxx1
+    stx screenx
+    ldy boxy1
+    sty screeny
     sec
     lda boxy2
     sbc boxy1
     sta sidecount
-    jsr calculate_screen_address
+    calculate_screen_address
     jsr vline
 
     ; Bottom stroke
@@ -302,7 +313,6 @@ guard mc_top
     lda boxx2
     sbc boxx1
     sta sidecount
-    jsr calculate_screen_address
     jsr hline
 
     ; Are all the sides the same colour? If so, don't bother recursing.
@@ -616,9 +626,10 @@ boxy2i = zi+1
     bcs exit
     sta screeny
 .yloop
-    lda boxx1i
-    sta screenx
-    jsr calculate_screen_address
+    ldx boxx1i
+    stx screenx
+    ldy screeny
+    calculate_screen_address
 
     ; Calculate length of line.
 
@@ -651,21 +662,6 @@ boxy2i = zi+1
 .exit
     rts
 }
-
-
-; Loads screenptr with the address of the pixel at screenx/screeny.
-.calculate_screen_address
-    ldx screenx
-    ldy screeny
-    clc
-    lda row_table_lo, Y
-    adc col_table_lo, X
-    sta screenptr+0
-    lda row_table_hi, Y
-    adc col_table_hi, X
-    sta screenptr+1
-
-    rts
 
 
 ; Copies the kernel into zero page, preserving Basic's state.
