@@ -339,33 +339,36 @@ guard mc_top
 
     ; Are all the sides the same colour? If so, don't bother recursing.
 
+{
     bit colourflag
-    bpl recurse
+    bpl skip
     jmp floodfill
-.recurse
+.skip
+}
 
-    ; Start recursion.
-
-    lda midx: pha
-    lda midy: pha
-
-    ; Calculate centre point.
+    ; Start recursion. First, calculate the centre point, pushing as we go.
 
     clc
     lda boxx1
     adc boxx2 ; produces 9-bit result in C:A
     ror A     ; 9-bit right shift
-    sta midx
     cmp boxx1
-    beq box_too_small
-    
+    beq box_too_small_x
+
+    ldx midx
+    phx
+    sta midx
+
     clc
     lda boxy1
     adc boxy2 ; produces 9-bit result in C:A
     ror A     ; 9-bit right shift
-    sta midy
     cmp boxy1
-    beq box_too_small
+    beq box_too_small_y
+
+    ldy midy
+    phy
+    sta midy
 
     ; Recurse into top left.
 
@@ -423,9 +426,10 @@ guard mc_top
     pla: sta boxy2
     pla: sta boxx1
 
-.box_too_small
     pla: sta midy
+.box_too_small_y
     pla: sta midx
+.box_too_small_x
 
     rts
 }
