@@ -290,7 +290,8 @@ guard mc_top
     calculate_screen_address
     jsr calculate
     sta corecolour
-    stz colourflag
+    lda #&ff
+    sta colourflag
 
     ; Top stroke
 
@@ -338,8 +339,8 @@ guard mc_top
 
     ; Are all the sides the same colour? If so, don't bother recursing.
 
-    lda colourflag
-    bne recurse
+    bit colourflag
+    bpl recurse
     jmp floodfill
 .recurse
 
@@ -446,7 +447,6 @@ guard mc_top
     asl A
 .pick_even_pixel
     and #&AA
-    tax
     bpl dont_calculate
 
     ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
@@ -519,15 +519,14 @@ guard mc_top
     ora temp
     sta (screenptr)
 
-    ; pixel colour in X on entry
+    ; pixel colour in A on entry
+    txa
 .dont_calculate:
-    txa
-    sec
-    sbc corecolour
-    ora colourflag
-    sta colourflag
-    txa
-
+    cmp corecolour
+    bne different_colours
+    rts
+.different_colours
+    stz colourflag
     rts
 }
 
