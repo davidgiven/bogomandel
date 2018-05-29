@@ -560,7 +560,7 @@ guard mc_top
 
     ; This pixel is even, so move to the next char.
 
-    clc
+    ; (C unset due to bcs above)
     lda screenptr+0
     adc #8
     sta screenptr+0
