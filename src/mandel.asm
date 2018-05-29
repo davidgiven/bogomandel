@@ -180,6 +180,32 @@ macro calculate_screen_address
     sta screenptr+1
 endmacro
 
+; Lazily renders the current point, leaving the colour in A.
+macro calculate_through_cache
+    ; Pick colour from screenx/screeny (calculate_screen_address must have been
+    ; called) into A.
+
+    lda screenx
+    ror A ; odd/even bit to C
+    lda (screenptr)
+    ; Unshifted values refer to the *left* hand pixel, so odd pixels
+    ; need adjusting.
+    bcc pick_even_pixel
+    asl A
+.pick_even_pixel
+    and #&AA
+    bpl dont_calculate
+    jsr recalculate_pixel
+    bra exit
+
+.dont_calculate
+    ; This pixel is cached, so just check the colour and exit.
+    cmp corecolour
+    beq exit
+    stz colourflag
+.exit
+endmacro
+
 
 clear mc_base, mc_top
 org mc_base
@@ -288,7 +314,7 @@ guard mc_top
     ldy boxy2
     sty screeny
     calculate_screen_address
-    jsr calculate
+    calculate_through_cache
     sta corecolour
     lda #&ff
     sta colourflag
@@ -435,35 +461,9 @@ guard mc_top
 }
 
 
-; Given a screenx/screeny and a calculated screen position, lazily renders the point.
-; Returns the pixel colour in A.
-.calculate
+; Runs the kernel to calculate the current pixel, and draws it.
+.recalculate_pixel
 {
-    ; Pick colour from screenx/screeny (calculate_screen_address must have been
-    ; called) into A.
-
-    lda screenx
-    ror A ; odd/even bit to C
-    lda (screenptr)
-    ; Unshifted values refer to the *left* hand pixel, so odd pixels
-    ; need adjusting.
-    bcc pick_even_pixel
-    asl A
-.pick_even_pixel
-    and #&AA
-    bmi needs_calculation
-
-    ; This pixel is cached, so just check the colour and exit.
-{
-    cmp corecolour
-    beq skip
-    stz colourflag
-.skip
-    rts
-}
-
-    ; This pixel's not cached, so we have to calculate it after all.
-.needs_calculation
     ; Turns screenx (0..127) / screeny (0..255) into ci/cr (-2..2).
     lda julia
     bne setup_julia
@@ -548,7 +548,7 @@ guard mc_top
 
 .hline
 {
-    jsr calculate
+    calculate_through_cache
 
     ; Moves to the next horizontal pixel.
 
@@ -576,7 +576,7 @@ guard mc_top
 
 .vline
 {
-    jsr calculate
+    calculate_through_cache
 
     ; Move to the next vertical pixel.
 
