@@ -655,10 +655,7 @@ boxy2i = zi+1
 
 ; Loads screenptr with the address of the pixel at screenx/screeny.
 .calculate_screen_address
-    lda screenx
-    lsr A ; to bytes
-    tax
-
+    ldx screenx
     ldy screeny
     clc
     lda row_table_lo, Y
@@ -803,18 +800,20 @@ boxy2i = zi+1
 .loop
     clc
     lda screenptr+0
-    sta col_table_lo, X
+    sta col_table_lo+0, X
+    sta col_table_lo+1, X
     adc #8
     sta screenptr+0
 
     lda screenptr+1
-    sta col_table_hi, X
+    sta col_table_hi+0, X
+    sta col_table_hi+1, X
     adc #0
     sta screenptr+1
 
     inx
-    cpx #64
-    bne loop
+    inx
+    bpl loop ; loop until 127
     rts
 }
 
@@ -892,8 +891,8 @@ boxy2i = zi+1
 .row_table_hi       skip &100
 .pixels_to_zr_lo    skip &80
 .pixels_to_zr_hi    skip &80
-.col_table_lo       skip &40 ; bytes; 0..63
-.col_table_hi       skip &40
+.col_table_lo       skip &80 ; pixels; 0..255
+.col_table_hi       skip &80
 .basic_state        skip kernel_size
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
