@@ -365,12 +365,8 @@ guard mc_top
 
     ; Are all the sides the same colour? If so, don't bother recursing.
 
-{
     bit colourflag
-    bpl skip
-    jmp floodfill
-.skip
-}
+    bmi floodfill
 
     ; Start recursion. First, calculate the centre point, pushing as we go.
 
@@ -422,12 +418,13 @@ guard mc_top
     jsr box
 
     pla: sta boxy1
-    pla: sta boxx2
+    plx: stx boxx2
 
     ; Recurse into bottom right.
 
-    lda boxx1: pha
-    lda boxy1: pha
+    ldx boxx1: phx
+    ;lda boxy1 ; already in A from previous pull
+    pha
 
     lda midx
     sta boxx1
@@ -457,6 +454,99 @@ guard mc_top
     pla: sta midx
 .box_too_small_x
 
+    rts
+}
+
+
+; Fill the current box with corecolour, which is corrupted.
+.floodfill
+{
+; Hacky temporary storage, reusing zr and zi in the kernel.
+boxx1i = zr+0
+boxy1i = zr+1
+boxx2i = zi+0
+boxy2i = zi+1
+
+    ; Compute pixel colour.
+
+    lda corecolour
+    lsr A
+    ora corecolour
+    sta corecolour
+
+    ; The margins of the box are already drawn. We can use this to avoid
+    ; the (expensive) cost of having to draw stray pixels on the left and
+    ; right, at the expense of a (very cheap) overdraw.
+
+    lda boxx1
+    bit #1
+    beq left_margin_even
+    inc A
+.left_margin_even
+    sta boxx1i
+
+    lda boxx2
+    bit #1
+    bne right_margin_odd
+    dec A
+.right_margin_odd
+    sta boxx2i
+
+    ; Don't redraw top and bottom (this is easy).
+
+    lda boxy1
+    inc A
+    sta boxy1i
+    
+    lda boxy2
+    dec A
+    sta boxy2i
+    
+    ; Check that our box is not empty.
+
+    lda boxx1i
+    cmp boxx2i
+    bcs exit
+
+    lda boxy1i
+    cmp boxy2i
+    bcs exit
+    sta screeny
+.yloop
+    ldx boxx1i
+    stx screenx
+    ldy screeny
+    calculate_screen_address
+
+    ; Calculate length of line.
+
+    sec
+    lda boxx2i
+    sbc boxx1i
+    lsr A ; to bytes
+    tax
+
+    ldy corecolour
+.xloop
+    tya
+    sta (screenptr)
+    clc
+    lda screenptr+0
+    adc #8
+    sta screenptr+0
+    bcc skip
+    inc screenptr+1
+.skip
+    dex
+    bpl xloop
+
+    lda screeny
+    inc A
+    sta screeny
+    lda boxy2i
+    cmp screeny
+    bcs yloop
+.exit
     rts
 }
 
@@ -599,99 +689,6 @@ align &100 ; hacky, but prevents page transitions in the code
 
     dec sidecount
     bne vline
-    rts
-}
-
-
-; Fill the current box with corecolour, which is corrupted.
-.floodfill
-{
-; Hacky temporary storage, reusing zr and zi in the kernel.
-boxx1i = zr+0
-boxy1i = zr+1
-boxx2i = zi+0
-boxy2i = zi+1
-
-    ; Compute pixel colour.
-
-    lda corecolour
-    lsr A
-    ora corecolour
-    sta corecolour
-
-    ; The margins of the box are already drawn. We can use this to avoid
-    ; the (expensive) cost of having to draw stray pixels on the left and
-    ; right, at the expense of a (very cheap) overdraw.
-
-    lda boxx1
-    bit #1
-    beq left_margin_even
-    inc A
-.left_margin_even
-    sta boxx1i
-
-    lda boxx2
-    bit #1
-    bne right_margin_odd
-    dec A
-.right_margin_odd
-    sta boxx2i
-
-    ; Don't redraw top and bottom (this is easy).
-
-    lda boxy1
-    inc A
-    sta boxy1i
-    
-    lda boxy2
-    dec A
-    sta boxy2i
-    
-    ; Check that our box is not empty.
-
-    lda boxx1i
-    cmp boxx2i
-    bcs exit
-
-    lda boxy1i
-    cmp boxy2i
-    bcs exit
-    sta screeny
-.yloop
-    ldx boxx1i
-    stx screenx
-    ldy screeny
-    calculate_screen_address
-
-    ; Calculate length of line.
-
-    sec
-    lda boxx2i
-    sbc boxx1i
-    lsr A ; to bytes
-    tax
-
-    ldy corecolour
-.xloop
-    tya
-    sta (screenptr)
-    clc
-    lda screenptr+0
-    adc #8
-    sta screenptr+0
-    bcc skip
-    inc screenptr+1
-.skip
-    dex
-    bpl xloop
-
-    lda screeny
-    inc A
-    sta screeny
-    lda boxy2i
-    cmp screeny
-    bcs yloop
-.exit
     rts
 }
 
