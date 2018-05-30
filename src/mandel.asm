@@ -514,7 +514,6 @@ boxy2i = zi+1
     sta screeny
 .yloop
     ldx boxx1i
-    stx screenx
     ldy screeny
     calculate_screen_address
 
@@ -534,9 +533,8 @@ boxy2i = zi+1
     lda screenptr+0
     adc #8
     sta screenptr+0
-    bcc skip
-    inc screenptr+1
-.skip
+    bcs inchighbyte
+.continue_xloop
     dex
     bpl xloop
 
@@ -548,6 +546,10 @@ boxy2i = zi+1
     bcs yloop
 .exit
     rts
+
+.inchighbyte
+    inc screenptr+1
+    bra continue_xloop
 }
 
 
@@ -648,13 +650,15 @@ align &100 ; hacky, but prevents page transitions in the code
     lda screenptr+0
     adc #8
     sta screenptr+0
-    bcc next
-    inc screenptr+1
-
+    bcs inchighbyte
 .next
     dec sidecount
     bne hline
     rts
+
+.inchighbyte
+    inc screenptr+1
+    bra next
 }
 
 
@@ -665,10 +669,9 @@ align &100 ; hacky, but prevents page transitions in the code
     ; Move to the next vertical pixel.
 
     inc screenptr+0
-    bne noinc
-    inc screenptr+1
-.noinc
+    beq inchighbyte
 
+.noinc
     lda screeny
     inc A
     sta screeny
@@ -677,6 +680,10 @@ align &100 ; hacky, but prevents page transitions in the code
     dec sidecount
     bne vline
     rts
+
+.inchighbyte
+    inc screenptr+1
+    bra noinc
 
 .nextrow
     clc
