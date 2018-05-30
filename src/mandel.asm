@@ -511,20 +511,16 @@ guard mc_top
     lda #accon_x
     tsb accon
     
-    lda iterations
-    and #7
-    tax
-    lda palette+8, X
+    ldy iterations
+    ldx palette+8, Y
 {
-    cmp corecolour
+    cpx corecolour
     beq skip
     stz colourflag
 .skip
 }
 
     ; Plot colour A to the current pixel.
-
-    tax
 
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
@@ -903,9 +899,8 @@ next_event = *+1
 
 
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
-align 16
 .palette
-    equb &00
+    equb &00 ; ordinary colours 0 to 7
     equb &02
     equb &08
     equb &0A
@@ -913,7 +908,8 @@ align 16
     equb &22
     equb &28
     equb &2A
-    equb &80
+.iteration_palette
+    equb &80 ; high-bit colours 8-15
     equb &82
     equb &88
     equb &8A
@@ -921,7 +917,25 @@ align 16
     equb &A2
     equb &A8
     equb &AA
+    ; These colours are used for looking up iterations. They're just repeated
+    ; copies of the high-bit colours, black excluded (because black stripes
+    ; look ugly).
+    for i, 0, 2
+        equb &82
+        equb &88
+        equb &8A
+        equb &A0
+        equb &A2
+        equb &A8
+        equb &AA
+    next
+    equb &82 ; stray
+    equb &88 ; stray
+    equb &8A ; stray
+    assert (* - iteration_palette) = ITERATIONS
+    equb &A0 ; for points *outside* the set
 
+    
 .kernel_data
     skip kernel_size
     copyblock kernel, kernel_end, kernel_data
