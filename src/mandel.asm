@@ -13,7 +13,7 @@ evntv      = &220
 
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
-zp_start = &74
+zp_start = &a8 ; we stomp over the transient command and filesystem workspace
 mc_base = &2000
 mc_top  = &3000
 
@@ -45,11 +45,7 @@ org zp_start
 .cr             equw 0
 .ci             equw 0
 
-.screenptr      equw 0
-.screenx        equb 0
 .screeny        equb 0
-
-.temp           equw 0
 
 .boxx1          equb 0
 .boxy1          equb 0
@@ -59,10 +55,7 @@ org zp_start
 .midy           equb 0
 .sidecount      equb 0
 
-.corecolour     equb 0
 .colourflag     equb 0
-
-.iterations     equb 0
 .exitflag       equb 0
 print "zero page:", ~zp_start, "to", ~P%
 
@@ -71,10 +64,19 @@ print "zero page:", ~zp_start, "to", ~P%
 ; Once zr, zi, cr, ci have been set up, use reenigne's Mandelbrot kernel to
 ; calculate the colour. This is copied into zero page when we need it
 ; (preserving Basic's workspace for use later).
+;
+; This routine also contains the code which updates colourflag and draws the
+; pixel; this allows us to inline a lot of variables for speed and use a
+; very cunning trick (suggested by rtw) for using tsb for the read/modify/
+; write operation to put the pixel on the screen.
 
     org &0
-    guard zp_start
+    guard &a0
 .kernel
+    ; Map the lookup tables.
+    lda #accon_x
+    trb accon
+    
     lda #ITERATIONS
     sta iterations
 .iterator_loop
@@ -161,6 +163,41 @@ kernel_ci_hi = *+1
     bne iterator_loop
 
 .bailout
+    ; Unmap the lookup tables.
+    lda #accon_x
+    tsb accon
+    
+    ; We've finished with the calculation; update the colour flag and draw
+    ; the pixel on the screen.
+
+iterations = * + 1
+    ldy #99
+    equb &be ; ldx palette+8, Y; beebasm won't assemble this properly
+    equw palette+8
+corecolour = * + 1
+    cpx #99
+{
+    beq skip
+    stz colourflag
+.skip
+}
+
+    ; Plot colour A to the current pixel.
+
+    ; Unshifted values refer to the *left* hand pixel, so odd pixels
+    ; need adjusting.
+screenx = * + 1
+    lda #99         ; Is this an even pixel?
+    ror A           ; odd/even bit to C
+    txa
+    bcc plot_even_pixel
+    lsr A
+.plot_even_pixel
+screenptr = * + 1
+    tsb &9999       ; unset pixels guaranteed to be 0
+
+    ; pixel colour in A on exit
+    txa
     rts
 .kernel_end
 
@@ -577,7 +614,7 @@ boxy2i = zi+1
     sta zi+1
     sta kernel_ci_hi
 
-    bra go
+    jmp kernel
 
 .setup_julia
     ; Julia setup: x/y -> zr, zi; leave cr, ci unchanged
@@ -593,41 +630,7 @@ boxy2i = zi+1
     lda pixels_to_zi_hi, Y
     sta zi+1
 
-.go
-    ; Map the lookup tables.
-    lda #accon_x
-    trb accon
-    
-    jsr kernel
-
-    lda #accon_x
-    tsb accon
-    
-    ldy iterations
-    ldx palette+8, Y
-{
-    cpx corecolour
-    beq skip
-    stz colourflag
-.skip
-}
-
-    ; Plot colour A to the current pixel.
-
-    ; Unshifted values refer to the *left* hand pixel, so odd pixels
-    ; need adjusting.
-    lda screenx     ; Is this an even pixel?
-    ror A           ; odd/even bit to C
-    txa
-    bcc plot_even_pixel
-    lsr A
-.plot_even_pixel
-    ora (screenptr) ; unset pixels guaranteed to be 0
-    sta (screenptr)
-
-    ; pixel colour in A on exit
-    txa
-    rts
+    jmp kernel
 }
 
 
@@ -710,7 +713,8 @@ align &100 ; hacky, but prevents page transitions in the code
     lda kernel_data, X
     sta kernel, X
     dex
-    bpl loop
+    cpx #&ff
+    bne loop
     rts
 }
 
@@ -723,7 +727,8 @@ align &100 ; hacky, but prevents page transitions in the code
     lda basic_state, X
     sta kernel, X
     dex
-    bpl loop
+    cpx #&ff
+    bne loop
     rts
 }
 
@@ -750,6 +755,9 @@ align &100 ; hacky, but prevents page transitions in the code
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
+{
+temp = screenptr ; hacky temporary storage
+
     ; Load temp with step*128 (half a screen width).
 
     stz temp+0
@@ -819,6 +827,7 @@ align &100 ; hacky, but prevents page transitions in the code
 
     ror step ; remember to put step back the way it was!
     rts
+}
 
 
 ; Build the column table (bytes to address offset).
