@@ -171,9 +171,8 @@ kernel_ci_hi = *+1
     ; the pixel on the screen.
 
 iterations = * + 1
-    ldy #99
-    equb &be ; ldx palette+8, Y; beebasm won't assemble this properly
-    equw palette+8
+    equb &ae ; ldx abs
+    equw palette ; low byte is patched with iterations byte
 corecolour = * + 1
     cpx #99
 {
@@ -911,17 +910,13 @@ next_event = *+1
     jmp 9999
 
 
+.kernel_data
+    skip kernel_size
+    copyblock kernel, kernel_end, kernel_data
+
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
+align &100 ; must be page aligned
 .palette
-    equb &00 ; ordinary colours 0 to 7
-    equb &02
-    equb &08
-    equb &0A
-    equb &20
-    equb &22
-    equb &28
-    equb &2A
-.iteration_palette
     equb &80 ; high-bit colours 8-15
     equb &82
     equb &88
@@ -945,14 +940,10 @@ next_event = *+1
     equb &82 ; stray
     equb &88 ; stray
     equb &8A ; stray
-    assert (* - iteration_palette) = ITERATIONS
+    assert (* - palette) = ITERATIONS
     equb &A0 ; for points *outside* the set
 
     
-.kernel_data
-    skip kernel_size
-    copyblock kernel, kernel_end, kernel_data
-
 .main_program_end
 
 ; Uninitialised data follows.
