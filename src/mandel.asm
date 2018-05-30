@@ -194,7 +194,7 @@ macro calculate_through_cache
     asl A
 .pick_even_pixel
     and #&AA
-    bpl dont_calculate
+    bmi dont_calculate
     jsr recalculate_pixel
     bra exit
 
@@ -514,7 +514,7 @@ guard mc_top
     lda iterations
     and #7
     tax
-    lda palette, X
+    lda palette+8, X
 {
     cmp corecolour
     beq skip
@@ -525,19 +525,16 @@ guard mc_top
     ; Plot colour A to the current pixel.
 
     tax
-    sta temp
 
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
     lda screenx     ; Is this an even pixel?
     ror A           ; odd/even bit to C
-    lda #&55        ; a = pixel mask
+    txa
     bcc plot_even_pixel
-    lsr temp
-    asl A
+    lsr A
 .plot_even_pixel
-    and (screenptr)
-    ora temp
+    ora (screenptr) ; unset pixels guaranteed to be 0
     sta (screenptr)
 
     ; pixel colour in A on exit
@@ -741,10 +738,8 @@ boxy2i = zi+1
 
 .bytes
     equb 28, 0, 31, 31, 0   ; define left-hand text window
-    equb 17, 128+8          ; set background to marker colour
-    equb 12                 ; clear window
+    equb 12                 ; clear screen
     equb 28, 32, 31, 39, 0  ; define right-hand text window
-    equb 17, 128+0          ; set background to black
 .bytes_end
 }
 
