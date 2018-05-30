@@ -25,6 +25,7 @@ PROCdrawcursor
 PROCdrawcursor
 G%=INKEY(0)
 UNTIL G%<>-1
+*FX 21,0
 IF G%=129 THEN vr=vr-step: UNTIL TRUE: ENDPROC
 IF G%=130 THEN vr=vr+step: UNTIL TRUE: ENDPROC
 IF G%=131 THEN vi=vi+step: UNTIL TRUE: ENDPROC
@@ -77,7 +78,6 @@ PRINT TAB(0,15);
 COLOUR 7: PRINT INT((128*256)/t): COLOUR 3: PRINT "   px/s"
 @%=&20105
 COLOUR 7: PRINT 't: COLOUR 3: PRINT "   secs"
-*FX 21,0
 ENDPROC
 
 DEFFNfixed(r)
