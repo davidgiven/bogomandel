@@ -27,10 +27,10 @@ putbasic "src/shell.bas", "shell"
 ; pointer.
 macro fixup_a ; corrupts flags!
 {
-    ora #&80 ; set top bit
+    and #&7f ; clear top bit
     bit #&40 ; bit6 -> z
-    beq skip
-    and #&7f ; clear top bit if bit6 is set
+    bne skip
+    ora #&80 ; set top bit if bit6 is clear
 .skip
 }
 endmacro
