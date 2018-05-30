@@ -543,6 +543,7 @@ guard mc_top
 }
 
 
+align &100 ; hacky, but prevents page transitions in the code
 .hline
 {
     calculate_through_cache
@@ -586,8 +587,12 @@ guard mc_top
     inc A
     sta screeny
     and #7
-    bne intrarow
+    beq nextrow
+    dec sidecount
+    bne vline
+    rts
 
+.nextrow
     clc
     lda screenptr+0
     adc #lo(640-8)
@@ -595,7 +600,6 @@ guard mc_top
     lda screenptr+1
     adc #hi(640-8)
     sta screenptr+1
-.intrarow
 
     dec sidecount
     bne vline
