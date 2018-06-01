@@ -483,9 +483,8 @@ guard mc_top
     tay
     bcs xloop ; value passed zero
 
+    inc screeny
     lda screeny
-    inc A
-    sta screeny
     cmp boxy2
     bcc yloop
 .exit
