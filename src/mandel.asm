@@ -634,9 +634,8 @@ align &100 ; hacky, but prevents page transitions in the code
 
     ; Moves to the next horizontal pixel.
 
+    inc screenx
     lda screenx
-    inc A
-    sta screenx
     ror A
     bcs next
 
@@ -668,9 +667,8 @@ align &100 ; hacky, but prevents page transitions in the code
     beq inchighbyte
 
 .noinc
+    inc screeny
     lda screeny
-    inc A
-    sta screeny
     and #7
     beq nextrow
     dec sidecount
