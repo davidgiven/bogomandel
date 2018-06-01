@@ -71,9 +71,7 @@ Z%?4=scale*2
 Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
-*fx 151,78,2
 CALL &2000
-*fx 151,78,130
 t=TIME/100
 PRINT TAB(0,15);
 @%=5
