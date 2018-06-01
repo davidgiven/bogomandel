@@ -229,13 +229,13 @@ macro calculate_through_cache
     bcc pick_even_pixel
     asl A
 .pick_even_pixel
-    and #&AA
     bmi dont_calculate
     jsr recalculate_pixel
     bra exit
 
 .dont_calculate
     ; This pixel is cached, so just check the colour and exit.
+    and #&AA ; mask out the other pixel
     cmp corecolour
     beq exit
     stz colourflag
