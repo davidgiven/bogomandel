@@ -510,13 +510,6 @@ boxy2i = zi+1
     ; the (expensive) cost of having to draw stray pixels on the left and
     ; right, at the expense of a (very cheap) overdraw.
 
-    lda boxx1
-    bit #1
-    beq left_margin_even
-    inc A
-.left_margin_even
-    sta boxx1i
-
     lda boxx2
     bit #1
     bne right_margin_odd
@@ -524,26 +517,36 @@ boxy2i = zi+1
 .right_margin_odd
     sta boxx2i
 
+    lda boxx1
+    bit #1
+    beq left_margin_even
+    inc A
+.left_margin_even
+    sta boxx1i
+
+    ; Check that our box does not have zero width.
+
+    ;lda boxx1i ; left in A from previous instruction
+    cmp boxx2i
+    bcs exit
+
     ; Don't redraw top and bottom (this is easy).
 
-    lda boxy1
-    inc A
-    sta boxy1i
-    
     lda boxy2
     dec A
     sta boxy2i
     
-    ; Check that our box is not empty.
+    lda boxy1
+    inc A
+    sta boxy1i
+    
+    ; Check that our box does not have zero height.
 
-    lda boxx1i
-    cmp boxx2i
-    bcs exit
-
-    lda boxy1i
+    ;lda boxy1i ; left in A from previous instruction
     cmp boxy2i
     bcs exit
     sta screeny
+
 .yloop
     ldx boxx1i
     ldy screeny
@@ -558,14 +561,15 @@ boxy2i = zi+1
     tax
 
     ldy corecolour
+    clc
 .xloop
+    ; carry clear on entry
     tya
     sta (screenptr)
-    clc
     lda screenptr+0
     adc #8
     sta screenptr+0
-    bcs inchighbyte
+    bcs inchighbyte ; if not taken, carry clear by definition; if taken, inchighbyte clears it
 .continue_xloop
     dex
     bpl xloop
@@ -581,6 +585,7 @@ boxy2i = zi+1
 
 .inchighbyte
     inc screenptr+1
+    clc
     bra continue_xloop
 }
 
