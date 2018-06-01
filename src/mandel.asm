@@ -27,10 +27,10 @@ putbasic "src/shell.bas", "shell"
 ; pointer.
 macro fixup_a ; corrupts flags!
 {
-    and #&7f ; clear top bit
-    bit #&40 ; bit6 -> z
-    bne skip
-    ora #&80 ; set top bit if bit6 is clear
+    sta lowbyteoftable
+lowbyteoftable = * + 1
+    equb &ad ; LDA abs
+    equw fixup_table
 .skip
 }
 endmacro
@@ -913,6 +913,15 @@ next_event = *+1
 .kernel_data
     skip kernel_size
     copyblock kernel, kernel_end, kernel_data
+
+; Used to fixup the high byte of a number, so that it's a valid pointer to its
+; own square in the lookup table. The table runs from &4000 to &C000, and the
+; rule is that bit7 = !bit6.
+align &100 ; must be page aligned
+.fixup_table
+    for i, 0, 255
+        equb (i and &7f) or (i and &40 eor &40)<<1
+    next
 
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
 align &100 ; must be page aligned
