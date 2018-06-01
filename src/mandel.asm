@@ -23,18 +23,6 @@ puttext "src/!boot", "!boot", 0
 putbasic "src/loader.bas", "loader"
 putbasic "src/shell.bas", "shell"
 
-; Given the high byte of a number in A, patches the top bit to be a valid
-; pointer.
-macro fixup_a ; corrupts flags!
-{
-    sta lowbyteoftable
-lowbyteoftable = * + 1
-    equb &ad ; LDA abs
-    equw fixup_table
-.skip
-}
-endmacro
-
 ; --- Global page ------------------------------------------------------------
 
 org zp_start
@@ -106,7 +94,13 @@ zi = *+1
     sta zr_p_zi+0
     lda zr+1            ; A = high(zr) 
     adc zi+1            ; A = high(zr + zi) + C 
-    fixup_a
+
+    ; Both X and Y are in use, so we use self-modifying code to avoid needing
+    ; to disturb them. One cycle longer that tax; lda fixup_table, X.
+    sta lowbyteoftable
+lowbyteoftable = * + 1
+    equb &ad ; lda abs
+    equw fixup_table
     sta zr_p_zi+1
 
     ; Calculate zr^2 - zi^2. 
@@ -130,7 +124,8 @@ zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
 kernel_cr_hi = *+1
     adc #99             ; A = high(zr^2 - zi^2 + cr) 
-    fixup_a
+    tax
+    equb &bd: equw fixup_table ; lda fixup_table, X
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -156,7 +151,8 @@ kernel_ci_lo = *+1
     tya
 kernel_ci_hi = *+1
     adc #99
-    fixup_a
+    tax
+    equb &bd: equw fixup_table ; lda fixup_table, X
     sta zi+1
 
     dec iterations
@@ -794,8 +790,8 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zi+0
 
-    lda zi+1
-    php: fixup_a: plp
+    ldx zi+1
+    lda fixup_table, X
     sta pixels_to_zi_hi, Y
     adc #0
     sta zi+1
@@ -815,8 +811,8 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zr+0
 
-    lda zr+1
-    php: fixup_a: plp
+    ldy zr+1
+    lda fixup_table, Y
     sta pixels_to_zr_hi, X
     adc #0
     sta zr+1
