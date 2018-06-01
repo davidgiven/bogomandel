@@ -497,7 +497,6 @@ guard mc_top
 boxx1i = zr+0
 boxy1i = zr+1
 boxx2i = zi+0
-boxy2i = zi+1
 
     ; Compute pixel colour.
 
@@ -530,22 +529,21 @@ boxy2i = zi+1
     cmp boxx2i
     bcs exit
 
-    ; Don't redraw top and bottom (this is easy).
+    ; The top bound is *inclusive*, and we don't want to redraw the top row.
+    ; The bottom bound is *exclusive* (as it makes the comparison cheaper)
+    ; and so we leave it in boxy2 and don't copy it.
 
-    lda boxy2
-    dec A
-    sta boxy2i
-    
     lda boxy1
     inc A
     sta boxy1i
+    sta screeny
     
     ; Check that our box does not have zero height.
 
-    ;lda boxy1i ; left in A from previous instruction
-    cmp boxy2i
-    bcs exit
-    sta screeny
+    lda boxy2
+    dec A
+    cmp boxy1i
+    beq exit 
 
 .yloop
     ldx boxx1i
@@ -577,9 +575,8 @@ boxy2i = zi+1
     lda screeny
     inc A
     sta screeny
-    lda boxy2i
-    cmp screeny
-    bcs yloop
+    cmp boxy2
+    bcc yloop
 .exit
     rts
 
