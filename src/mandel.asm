@@ -332,10 +332,18 @@ guard mc_top
 
 .box
 {
+    ; Hacky temporary storage, reusing zr and zi in the kernel.
+    boxx1i = zr+0
+    boxy1i = zr+1
+    boxx2i = zi+0
+    linewidth = zi+1
+
     ; Check for keypress.
 
     bit exitflag
     bpl handy_rts
+
+    ; *** First: draw the outlines of the box *******************************
 
     ; The line drawing routines don't draw the last pixel, so do that
     ; specially. (We need to probe one pixel anyway so it's no bad
@@ -395,13 +403,98 @@ guard mc_top
     sta sidecount
     jsr hline
 
-    ; Are all the sides the same colour? If so, don't bother recursing.
+    ; If the sides aren't all the same colour, recurse.
 
     bit colourflag
-    bmi floodfill
+    bpl recurse
+
+    ; Otherwise, fill the current box.
+
+    ; *** Then either: fill the current box *********************************
+
+    ; The margins of the box are already drawn. We can use this to avoid
+    ; the (expensive) cost of having to draw stray pixels on the left and
+    ; right, at the expense of a (very cheap) overdraw.
+
+    lda boxx1
+    bit #1
+    beq left_margin_even
+    inc A
+.left_margin_even
+    sta boxx1i
+
+    lda boxx2
+    bit #1
+    bne right_margin_odd
+    dec A
+.right_margin_odd
+    sta boxx2i
+
+    ; Calculate length of line.
+
+    sec
+    ;lda boxx2i ; left in A from previous instruction
+    sbc boxx1i
+    beq exit ; don't do anything if the box has zero width
+    cmp #32
+    bcs recurse ; always recurse if the box is bigger than 32
+    and #&7e ; round down; now it's 2* bytes
+    asl A ; to 4* bytes
+    asl A ; to 8* bytes
+    sta linewidth
+    
+    ; Compute pixel colour.
+
+    lda corecolour
+    lsr A
+    ora corecolour
+    sta corecolour
+
+    ; The top bound is *inclusive*, and we don't want to redraw the top row.
+    ; The bottom bound is *exclusive* (as it makes the comparison cheaper)
+    ; and so we leave it in boxy2 and don't copy it.
+
+    lda boxy1
+    inc A
+    sta boxy1i
+    sta screeny
+    
+    ; Check that our box does not have zero height.
+
+    lda boxy2
+    dec A
+    cmp boxy1i
+    beq exit 
+
+.yloop
+    ldx boxx1i
+    ldy screeny
+    calculate_screen_address
+
+    ldy linewidth
+    ldx corecolour
+.xloop
+    ; displacement in Y on entry
+    txa
+    sta (screenptr), Y
+    tya
+    sec
+    sbc #8
+    tay
+    bcs xloop ; value passed zero
+
+    lda screeny
+    inc A
+    sta screeny
+    cmp boxy2
+    bcc yloop
+.exit
+    rts
+
+    ; *** Or: recurse into the current box **********************************
 
     ; Start recursion. First, calculate the centre point, pushing as we go.
-
+.recurse
     clc
     lda boxx1
     adc boxx2 ; produces 9-bit result in C:A
@@ -487,103 +580,6 @@ guard mc_top
 .box_too_small_x
 
     rts
-}
-
-
-; Fill the current box with corecolour, which is corrupted.
-.floodfill
-{
-; Hacky temporary storage, reusing zr and zi in the kernel.
-boxx1i = zr+0
-boxy1i = zr+1
-boxx2i = zi+0
-
-    ; Compute pixel colour.
-
-    lda corecolour
-    lsr A
-    ora corecolour
-    sta corecolour
-
-    ; The margins of the box are already drawn. We can use this to avoid
-    ; the (expensive) cost of having to draw stray pixels on the left and
-    ; right, at the expense of a (very cheap) overdraw.
-
-    lda boxx2
-    bit #1
-    bne right_margin_odd
-    dec A
-.right_margin_odd
-    sta boxx2i
-
-    lda boxx1
-    bit #1
-    beq left_margin_even
-    inc A
-.left_margin_even
-    sta boxx1i
-
-    ; Check that our box does not have zero width.
-
-    ;lda boxx1i ; left in A from previous instruction
-    cmp boxx2i
-    bcs exit
-
-    ; The top bound is *inclusive*, and we don't want to redraw the top row.
-    ; The bottom bound is *exclusive* (as it makes the comparison cheaper)
-    ; and so we leave it in boxy2 and don't copy it.
-
-    lda boxy1
-    inc A
-    sta boxy1i
-    sta screeny
-    
-    ; Check that our box does not have zero height.
-
-    lda boxy2
-    dec A
-    cmp boxy1i
-    beq exit 
-
-.yloop
-    ldx boxx1i
-    ldy screeny
-    calculate_screen_address
-
-    ; Calculate length of line.
-
-    sec
-    lda boxx2i
-    sbc boxx1i
-    lsr A ; to bytes
-    tax
-
-    ldy corecolour
-    clc
-.xloop
-    ; carry clear on entry
-    tya
-    sta (screenptr)
-    lda screenptr+0
-    adc #8
-    sta screenptr+0
-    bcs inchighbyte ; if not taken, carry clear by definition; if taken, inchighbyte clears it
-.continue_xloop
-    dex
-    bpl xloop
-
-    lda screeny
-    inc A
-    sta screeny
-    cmp boxy2
-    bcc yloop
-.exit
-    rts
-
-.inchighbyte
-    inc screenptr+1
-    clc
-    bra continue_xloop
 }
 
 
