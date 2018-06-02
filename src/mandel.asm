@@ -10,7 +10,7 @@ accon      = &FE34
 romsel     = &FE30
 romsel_ram = &F4
 evntv      = &220
-shiela     = &fe00
+sheila     = &fe00
 ifr        = 13
 ier        = 14
 
@@ -226,12 +226,12 @@ endmacro
 macro calculate_through_cache
     ; Poll the clock.
 
-    bit shiela+system_via+ifr
+    bit sheila+system_via+ifr
     bvc noclock
 
     ; Acknowledge interrupt
     lda #clock_irq
-    sta shiela+system_via+ifr
+    sta sheila+system_via+ifr
 
     ; Increment clock counter
     inc clock+0
@@ -353,7 +353,7 @@ guard mc_top
     ; Check for keypress.
 
     lda #kbd_irq
-    bit shiela+system_via+ifr
+    bit sheila+system_via+ifr
     bne handy_rts
 
     ; *** First: draw the outlines of the box *******************************
