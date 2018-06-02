@@ -286,9 +286,9 @@ guard mc_top
 
     jsr build_pixels_to_z_table
 
-    ; Mask out the keyboard.
+    ; Mask out the keyboard and vsync.
 
-    lda #kbd_irq
+    lda #kbd_irq+vsync_irq
     sta shiela+system_via+irq_enable
 
     ; Draw.
@@ -304,7 +304,7 @@ guard mc_top
 
     ; Put things back the way they were.
 
-    lda #&80 + kbd_irq
+    lda #&80 + kbd_irq+vsync_irq
     sta shiela+system_via+irq_enable
 
     lda #accon_x
