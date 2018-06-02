@@ -72,7 +72,7 @@ Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
 CALL &2000
-t=TIME/100
+t=(Z%!10 AND &FFFF)/100
 PRINT TAB(0,15);
 @%=5
 COLOUR 7: PRINT INT((128*256)/t): COLOUR 3: PRINT "   px/s"

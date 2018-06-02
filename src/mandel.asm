@@ -11,13 +11,14 @@ romsel     = &FE30
 romsel_ram = &F4
 evntv      = &220
 shiela     = &fe00
-irq_flag   = 13
-irq_enable = 14
+ifr        = 13
+ier        = 14
 
 system_via = &40
 kbd_irq    = 1<<0
 vsync_irq  = 1<<1
 adc_irq    = 1<<4
+clock_irq  = 1<<6
 
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
@@ -40,6 +41,7 @@ org zp_start
 .julia          equb 0
 .cr             equw 0
 .ci             equw 0
+.clock          equw 0
 
 .screeny        equb 0
 
@@ -222,6 +224,21 @@ endmacro
 
 ; Lazily renders the current point, leaving the colour in A.
 macro calculate_through_cache
+    ; Poll the clock.
+
+    bit shiela+system_via+ifr
+    bvc noclock
+
+    ; Acknowledge interrupt
+    lda #clock_irq
+    sta shiela+system_via+ifr
+
+    ; Increment clock counter
+    inc clock+0
+    bne noclock
+    inc clock+1
+    
+.noclock
     ; Pick colour from screenx/screeny (calculate_screen_address must have been
     ; called) into A.
 
@@ -286,10 +303,12 @@ guard mc_top
 
     jsr build_pixels_to_z_table
 
-    ; Mask out the keyboard and vsync.
+    ; Turn interrupts off entirely; we'll keep track of time and keyboard by polling
+    ; the system VIA directly.
 
-    lda #kbd_irq+vsync_irq
-    sta shiela+system_via+irq_enable
+    sei
+    stz clock+0
+    stz clock+1
 
     ; Draw.
 
@@ -304,8 +323,7 @@ guard mc_top
 
     ; Put things back the way they were.
 
-    lda #&80 + kbd_irq+vsync_irq
-    sta shiela+system_via+irq_enable
+    cli
 
     lda #accon_x
     trb accon
@@ -335,7 +353,7 @@ guard mc_top
     ; Check for keypress.
 
     lda #kbd_irq
-    bit shiela+system_via+irq_flag
+    bit shiela+system_via+ifr
     bne handy_rts
 
     ; *** First: draw the outlines of the box *******************************
