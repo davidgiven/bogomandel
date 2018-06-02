@@ -10,6 +10,14 @@ accon      = &FE34
 romsel     = &FE30
 romsel_ram = &F4
 evntv      = &220
+shiela     = &fe00
+irq_flag   = 13
+irq_enable = 14
+
+system_via = &40
+kbd_irq    = 1<<0
+vsync_irq  = 1<<1
+adc_irq    = 1<<4
 
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
@@ -278,20 +286,10 @@ guard mc_top
 
     jsr build_pixels_to_z_table
 
-    ; Install the event handler for testing for a keypress.
+    ; Mask out the keyboard.
 
-    lda #&ff
-    sta exitflag
-    sei
-    lda evntv+0
-    sta next_event+0
-    lda evntv+1
-    sta next_event+1
-    lda #lo(event_handler)
-    sta evntv+0
-    lda #hi(event_handler)
-    sta evntv+1
-    cli
+    lda #kbd_irq
+    sta shiela+system_via+irq_enable
 
     ; Draw.
 
@@ -306,12 +304,8 @@ guard mc_top
 
     ; Put things back the way they were.
 
-    sei
-    lda next_event+0
-    sta evntv+0
-    lda next_event+1
-    sta evntv+1
-    cli
+    lda #&80 + kbd_irq
+    sta shiela+system_via+irq_enable
 
     lda #accon_x
     trb accon
@@ -340,8 +334,9 @@ guard mc_top
 
     ; Check for keypress.
 
-    bit exitflag
-    bpl handy_rts
+    lda #kbd_irq
+    bit shiela+system_via+irq_flag
+    bne handy_rts
 
     ; *** First: draw the outlines of the box *******************************
 
@@ -885,20 +880,6 @@ temp = screenptr ; hacky temporary storage
     bra build_row_table_loop
 .build_row_table_loop_exit
     rts
-
-
-; The keypress event handler.
-.event_handler
-    php
-    cmp #2 ; character entering input buffer
-    bne event_handler_exit
-    cpx #0 ; keyboard buffer
-    bne event_handler_exit
-    stz exitflag
-.event_handler_exit
-    plp
-next_event = *+1
-    jmp 9999
 
 
 .kernel_data
