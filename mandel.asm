@@ -388,20 +388,26 @@ FLIPADDR = 7 + $3000 + $8000 - 640
     clc
     adc screenptr_top+0
     sta screenptr_top+0
-    bcc dont_add_screenptr_top
-    inc screenptr_top+1
-dont_add_screenptr_top:
+    bcs add_screenptr_top
+after_add_screenptr_top:
 
     sec
     lda screenptr_bot+0
     sbc pixelmask
     sta screenptr_bot+0
-    bcs dont_add_screenptr_bot
-    dec screenptr_bot+1
-dont_add_screenptr_bot:
+    bcc add_screenptr_bot
+after_add_screenptr_bot:
 
 exit:
     rts
+
+add_screenptr_top:
+    inc screenptr_top+1
+    bra after_add_screenptr_top
+
+add_screenptr_bot:
+    dec screenptr_bot+1
+    bra after_add_screenptr_bot
 
 #define row_addr(y) .word ($3000 + y*640)
 row_table:
@@ -454,37 +460,40 @@ go_to_pixel_right:
     lda screenptr_bot+0
     adc #8
     sta screenptr_bot+0
-    bcc dont_add_screenptr_bot
-    inc screenptr_bot+1
-dont_add_screenptr_bot:
+    bcs add_screenptr_bot
+after_add_screenptr_bot:
 
     clc
     lda screenptr_top+0
     adc #8
     sta screenptr_top+0
-    bcc dont_add_screenptr_top
-    inc screenptr_top+1
-dont_add_screenptr_top:
+    bcs add_screenptr_top
+after_add_screenptr_top:
 
 exit:
     rts
+
+add_screenptr_bot:
+    inc screenptr_bot+1
+    bra after_add_screenptr_bot
+
+add_screenptr_top:
+    inc screenptr_top+1
+    bra after_add_screenptr_top
+
 .)
 
 ; Given a calculated screenptr_top, moves to the next vertical pixel.
 go_to_pixel_down:
 .(
     inc screenptr_top+0
-    bne dont_increment_screenptr_top
-    inc screenptr_top+1
-dont_increment_screenptr_top:
+    beq increment_screenptr_top
+after_increment_screenptr_top:
 
     lda screenptr_bot+0
-    dec
-    sta screenptr_bot+0
-    cmp #$ff
-    bne dont_decrement_screenptr_bot
-    dec screenptr_bot+1
-dont_decrement_screenptr_bot:
+    beq decrement_screenptr_bot
+after_decrement_screenptr_bot:
+    dec screenptr_bot+0
 
     lda screeny
     inc
@@ -511,28 +520,33 @@ ROWSIZE = 640 - 8
 
 exit:
     rts
+
+increment_screenptr_top:
+    inc screenptr_top+1
+    bra after_increment_screenptr_top
+
+decrement_screenptr_bot
+    dec screenptr_bot+1
+    bra after_decrement_screenptr_bot
 .)
 
 ; Plot colour pixelcol to the pixel at screenx/screeny (calculate_screen_address must
 ; have been called). Corrupts pixelcol!
 plot:
 .(
-    lda #$55
-    sta pixelmask
-
     ; Unshifted values refer to the *left* hand pixel, so odd pixels
     ; need adjusting.
     lda screenx     ; Is this an even pixel?
     ror
     ror             ; odd/even bit to C
+    lda #$55
     bcc even_pixel
 
     lsr pixelcol
-    asl pixelmask
+    asl
 
 even_pixel:
-    lda (screenptr_top)
-    and pixelmask
+    and (screenptr_top)
     ora pixelcol
     sta (screenptr_top)
     sta (screenptr_bot)
@@ -660,12 +674,10 @@ xloop:
 
 nextx:
     inx
-    cpx #$80
-    bne xloop
+    bpl xloop
 nexty:
     iny
-    cpy #$80
-    bne yloop
+    bpl yloop
     rts
 
 overflow:
@@ -683,19 +695,15 @@ setup_signed_tables:
 yloop:
     ldx #0
 xloop:
-    phx
     txa
     eor #$ff
     inc
     sta screenx
-    plx
 
-    phy
     tya
     eor #$ff
     inc
     sta screeny
-    ply
 
     jsr map_multiplication
     lda (mulptr)
@@ -711,7 +719,6 @@ xloop:
     pla
     sta (mulptr)
     ply
-    plx
 
     ; Everything else uses a negative result.
 
@@ -720,7 +727,6 @@ xloop:
 
     ; negx, posy.
 
-    phx
     ldx screenx
     pha
     jsr map_multiplication
@@ -737,11 +743,9 @@ xloop:
     ply
 
     inx
-    cpx #$80
-    bne xloop
+    bpl xloop
     iny
-    cpy #$80
-    bne yloop
+    bpl yloop
     rts
 .)
 
@@ -749,18 +753,13 @@ xloop:
 mandel:
 .(
     lda screeny
-    clc
-    adc #$80
+    eor #$80
     sta ci
+    sta zi
 
     lda screenx
-    clc
-    adc #$80
+    eor #$80
     sta cr
-
-    lda ci
-    sta zi
-    lda cr
     sta zr
     lda #ITERATIONS
     sta iterations
@@ -789,9 +788,7 @@ loop:
     cmp #$7f
     beq bailout
     
-    sta temp
-    clc
-    adc temp
+    asl
     clc
     adc ci
     sta zi
