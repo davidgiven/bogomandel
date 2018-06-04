@@ -303,9 +303,8 @@ xloop:
     dec sidecount
     bne xloop
 
+    inc screeny
     lda screeny
-    inc
-    sta screeny
     cmp boxy2
     bne yloop
 exit:
@@ -389,14 +388,13 @@ FLIPADDR = 7 + $3000 + $8000 - 640
     adc screenptr_top+0
     sta screenptr_top+0
     bcs add_screenptr_top
+    sec
 after_add_screenptr_top:
 
-    sec
     lda screenptr_bot+0
     sbc pixelmask
     sta screenptr_bot+0
     bcc add_screenptr_bot
-after_add_screenptr_bot:
 
 exit:
     rts
@@ -407,7 +405,7 @@ add_screenptr_top:
 
 add_screenptr_bot:
     dec screenptr_bot+1
-    bra after_add_screenptr_bot
+    rts
 
 #define row_addr(y) .word ($3000 + y*640)
 row_table:
@@ -463,23 +461,22 @@ go_to_pixel_right:
     bcs add_screenptr_bot
 after_add_screenptr_bot:
 
-    clc
     lda screenptr_top+0
     adc #8
     sta screenptr_top+0
     bcs add_screenptr_top
-after_add_screenptr_top:
 
 exit:
     rts
 
 add_screenptr_bot:
     inc screenptr_bot+1
+    clc
     bra after_add_screenptr_bot
 
 add_screenptr_top:
     inc screenptr_top+1
-    bra after_add_screenptr_top
+    rts
 
 .)
 
