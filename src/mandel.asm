@@ -248,7 +248,7 @@ guard mc_top
     ; Initialisation.
 
 .main_program_start
-    jsr kernel_in
+    jsr kernel_inout
     jsr clear_screen
     jsr build_row_table
     jsr build_col_table
@@ -280,8 +280,8 @@ guard mc_top
 
     ; Install the event handler for testing for a keypress.
 
-    lda #&ff
-    sta exitflag
+    ldx #&ff
+    stx exitflag
     sei
     lda evntv+0
     sta next_event+0
@@ -295,13 +295,13 @@ guard mc_top
 
     ; Draw.
 
-    lda #0
-    sta boxx1
-    sta boxy1
-    lda #127
-    sta boxx2
+    inx
+    stx boxx1
+    stx boxy1
     lda #255
     sta boxy2
+    lsr
+    sta boxx2
     jsr box
 
     ; Put things back the way they were.
@@ -317,8 +317,24 @@ guard mc_top
     trb accon
     lda #12
     jsr map_rom
-    jsr kernel_out
+
+    ;fall through
+
+; Swap the kernel to/from zero page, preserving Basic's state.
+.kernel_inout
+{
+    ldx #kernel_size-1
+.loop
+    lda kernel, X
+    ldy kernel_data, X
+    sta kernel_data, X
+    sty kernel, X
+    dex
+    cpx #&ff
+    bne loop
     rts
+}
+
 
 ; Maps the ROM in A.
 .map_rom
@@ -693,36 +709,6 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 
-; Copies the kernel into zero page, preserving Basic's state.
-.kernel_in
-{
-    ldx #kernel_size-1
-.loop
-    lda kernel, X
-    sta basic_state, X
-    lda kernel_data, X
-    sta kernel, X
-    dex
-    cpx #&ff
-    bne loop
-    rts
-}
-
-
-; Copies Basic's state back into zero page.
-.kernel_out
-{
-    ldx #kernel_size-1
-.loop
-    lda basic_state, X
-    sta kernel, X
-    dex
-    cpx #&ff
-    bne loop
-    rts
-}
-
-
 ; Clears the screen between renders.
 .clear_screen
 {
@@ -798,22 +784,23 @@ temp = screenptr ; hacky temporary storage
 
     rol step
 
-    ldx #0
+    ;use Y instead, since it's zero already
+    ;ldx #0
 .xloop
     clc
     lda zr+0
-    sta pixels_to_zr_lo, X
+    sta pixels_to_zr_lo, Y
     adc step
     sta zr+0
 
-    ldy zr+1
-    lda fixup_table, Y
-    sta pixels_to_zr_hi, X
+    ldx zr+1
+    lda fixup_table, X
+    sta pixels_to_zr_hi, Y
     adc #0
     sta zr+1
 
-    inx
-    bpl xloop ; exit at x=128
+    iny
+    bpl xloop ; exit at y=128
 
     ror step ; remember to put step back the way it was!
     rts
@@ -957,7 +944,6 @@ align &100
 .pixels_to_zr_hi    skip &80
 .col_table_lo       skip &80 ; pixels; 0..255
 .col_table_hi       skip &80
-.basic_state        skip kernel_size
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
 save "mandel", main_program_start, main_program_end
@@ -1047,9 +1033,8 @@ guard mc_top
     tya
     adc screenptr+0
     sta screenptr+0
-    lda screenptr+1
-    adc #0
-    sta screenptr+1
+    bcc dont_advance
+    inc screenptr+1
 
 .dont_advance
     inx
