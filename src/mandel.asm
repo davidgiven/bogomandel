@@ -486,7 +486,7 @@ temp = screenptr ; hacky temporary storage
 {
     ldx #kernel_size-1
 .loop
-    lda basic_state, X
+    lda kernel_data, X
     sta kernel, X
     dex
     cpx #&ff
