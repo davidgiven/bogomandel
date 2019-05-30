@@ -248,10 +248,98 @@ guard mc_top
     ; Initialisation.
 
 .main_program_start
-    jsr kernel_inout
-    jsr clear_screen
-    jsr build_row_table
-    jsr build_col_table
+; Copies the kernel into zero page, preserving Basic's state.
+.kernel_in
+{
+    ldx #kernel_size-1
+.loop
+    lda kernel, X
+    ldy kernel_data, X
+    sta kernel_data, X
+    sty kernel, X
+    dex
+    cpx #&ff
+    bne loop
+}
+
+; Clears the screen between renders.
+.clear_screen
+{
+    ldx #0
+.loop
+    lda bytes, X
+    jsr oswrch
+    inx
+    cpx #(bytes_end - bytes)
+    bne loop
+}
+
+; Build the row table (pixels to address).
+.build_row_table
+{
+    stz screenptr+0
+    lda #&30 ; framebuffer at &3000
+    sta screenptr+1
+    ldx #0
+.build_row_table_loop
+    clc
+    lda screenptr+0
+    sta row_table_lo, X
+    adc #1
+    sta screenptr+0
+
+    lda screenptr+1
+    sta row_table_hi, X
+    adc #0
+    sta screenptr+1
+
+    inx
+    beq build_row_table_loop_exit
+    txa
+    and #7
+    bne build_row_table_loop
+
+    ; Reached the end of a char row; increment by (640-8) to move
+    ; to the next char row.
+
+    clc
+    lda screenptr+0
+    adc #(640-8) MOD 256
+    sta screenptr+0
+    lda screenptr+1
+    adc #(640-8) DIV 256
+    sta screenptr+1
+
+    bra build_row_table_loop
+.build_row_table_loop_exit
+}
+
+; Build the column table (bytes to address offset).
+.build_col_table
+{
+    stz screenptr+0
+    stz screenptr+1
+    ldx #0
+.loop
+    clc
+    lda screenptr+0
+    sta col_table_lo+0, X
+    sta col_table_lo+1, X
+    adc #8
+    sta screenptr+0
+
+    lda screenptr+1
+    sta col_table_hi+0, X
+    sta col_table_hi+1, X
+    adc #0
+    sta screenptr+1
+
+    inx
+    inx
+    bpl loop ; loop until 127
+}
+
+
 
     ; Map sideways RAM bank 4, containing our lookup table.
 
@@ -276,7 +364,82 @@ guard mc_top
 
     ; Compute zoom table.
 
-    jsr build_pixels_to_z_table
+; Build the pixels-to-z table.
+.build_pixels_to_z_table
+{
+temp = screenptr ; hacky temporary storage
+
+    ; Load temp with step*128 (half a screen width).
+
+    stz temp+0
+    lda step ; A:(temp+0) = step * 256
+
+    lsr A
+    ror temp+0 ; A:(temp+0) = step * 128
+    sta temp+1
+
+    ; Now set zr and zi to the top and left of the image.
+
+    sec
+    lda centerx+0
+    sbc temp+0
+    sta zr+0
+    lda centerx+1
+    sbc temp+1
+    sta zr+1
+
+    sec
+    lda centery+0
+    sbc temp+0
+    sta zi+0
+    lda centery+1
+    sbc temp+1
+    sta zi+1
+
+    ; Y pixels go from 0 to 255, with 0x80 being the midpoint.
+
+    ldy #0
+.yloop
+    clc
+    lda zi+0
+    sta pixels_to_zi_lo, Y
+    adc step
+    sta zi+0
+
+    ldx zi+1
+    lda fixup_table, X
+    sta pixels_to_zi_hi, Y
+    adc #0
+    sta zi+1
+
+    iny
+    bne yloop
+
+    ; X pixels go from 0 to 127, with 0x40 being the midpoint, using double the step.
+
+    rol step
+
+    ;use Y instead, since it's zero already
+    ;ldx #0
+.xloop
+    clc
+    lda zr+0
+    sta pixels_to_zr_lo, Y
+    adc step
+    sta zr+0
+
+    ldx zr+1
+    lda fixup_table, X
+    sta pixels_to_zr_hi, Y
+    adc #0
+    sta zr+1
+
+    iny
+    bpl xloop ; exit at y=128
+
+    ror step ; remember to put step back the way it was!
+}
+
 
     ; Install the event handler for testing for a keypress.
 
@@ -318,17 +481,13 @@ guard mc_top
     lda #12
     jsr map_rom
 
-    ;fall through
-
-; Swap the kernel to/from zero page, preserving Basic's state.
-.kernel_inout
+; Copies Basic's state back into zero page.
+.kernel_out
 {
     ldx #kernel_size-1
 .loop
-    lda kernel, X
-    ldy kernel_data, X
-    sta kernel_data, X
-    sty kernel, X
+    lda basic_state, X
+    sta kernel, X
     dex
     cpx #&ff
     bne loop
@@ -709,169 +868,11 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 
-; Clears the screen between renders.
-.clear_screen
-{
-    ldx #0
-.loop
-    lda bytes, X
-    jsr oswrch
-    inx
-    cpx #(bytes_end - bytes)
-    bne loop
-    rts
-
 .bytes
     equb 28, 0, 31, 31, 0   ; define left-hand text window
     equb 12                 ; clear screen
     equb 28, 32, 31, 39, 0  ; define right-hand text window
 .bytes_end
-}
-
-
-; Build the pixels-to-z table.
-.build_pixels_to_z_table
-{
-temp = screenptr ; hacky temporary storage
-
-    ; Load temp with step*128 (half a screen width).
-
-    stz temp+0
-    lda step ; A:(temp+0) = step * 256
-
-    lsr A
-    ror temp+0 ; A:(temp+0) = step * 128
-    sta temp+1
-
-    ; Now set zr and zi to the top and left of the image.
-
-    sec
-    lda centerx+0
-    sbc temp+0
-    sta zr+0
-    lda centerx+1
-    sbc temp+1
-    sta zr+1
-
-    sec
-    lda centery+0
-    sbc temp+0
-    sta zi+0
-    lda centery+1
-    sbc temp+1
-    sta zi+1
-
-    ; Y pixels go from 0 to 255, with 0x80 being the midpoint.
-
-    ldy #0
-.yloop
-    clc
-    lda zi+0
-    sta pixels_to_zi_lo, Y
-    adc step
-    sta zi+0
-
-    ldx zi+1
-    lda fixup_table, X
-    sta pixels_to_zi_hi, Y
-    adc #0
-    sta zi+1
-
-    iny
-    bne yloop
-
-    ; X pixels go from 0 to 127, with 0x40 being the midpoint, using double the step.
-
-    rol step
-
-    ;use Y instead, since it's zero already
-    ;ldx #0
-.xloop
-    clc
-    lda zr+0
-    sta pixels_to_zr_lo, Y
-    adc step
-    sta zr+0
-
-    ldx zr+1
-    lda fixup_table, X
-    sta pixels_to_zr_hi, Y
-    adc #0
-    sta zr+1
-
-    iny
-    bpl xloop ; exit at y=128
-
-    ror step ; remember to put step back the way it was!
-    rts
-}
-
-
-; Build the column table (bytes to address offset).
-.build_col_table
-{
-    stz screenptr+0
-    stz screenptr+1
-    ldx #0
-.loop
-    clc
-    lda screenptr+0
-    sta col_table_lo+0, X
-    sta col_table_lo+1, X
-    adc #8
-    sta screenptr+0
-
-    lda screenptr+1
-    sta col_table_hi+0, X
-    sta col_table_hi+1, X
-    adc #0
-    sta screenptr+1
-
-    inx
-    inx
-    bpl loop ; loop until 127
-    rts
-}
-
-
-; Build the row table (pixels to address).
-.build_row_table
-    stz screenptr+0
-    lda #&30 ; framebuffer at &3000
-    sta screenptr+1
-    ldx #0
-.build_row_table_loop
-    clc
-    lda screenptr+0
-    sta row_table_lo, X
-    adc #1
-    sta screenptr+0
-
-    lda screenptr+1
-    sta row_table_hi, X
-    adc #0
-    sta screenptr+1
-
-    inx
-    beq build_row_table_loop_exit
-    txa
-    and #7
-    bne build_row_table_loop
-
-    ; Reached the end of a char row; increment by (640-8) to move
-    ; to the next char row.
-
-    clc
-    lda screenptr+0
-    adc #(640-8) MOD 256
-    sta screenptr+0
-    lda screenptr+1
-    adc #(640-8) DIV 256
-    sta screenptr+1
-
-    bra build_row_table_loop
-.build_row_table_loop_exit
-    rts
 
 
 ; The keypress event handler.
