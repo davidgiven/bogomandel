@@ -754,7 +754,7 @@ align &100 ; hacky, but prevents page transitions in the code
     rts
 }
 
-; Move the contents of the screen right 64 rows, as in response to left-arrow
+; Move the contents of the screen right 32 columns, as in response to left-arrow
 .scroll_left
 {
     ldx #95
@@ -797,7 +797,7 @@ align &100 ; hacky, but prevents page transitions in the code
     rts
 }
 
-; Move the contents of the screen left 64 columns, as in response to right-arrow
+; Move the contents of the screen left 32 columns, as in response to right-arrow
 .scroll_right
 {
     ldx #32
