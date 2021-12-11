@@ -734,6 +734,7 @@ align &100 ; hacky, but prevents page transitions in the code
     sta (screenptr)
     inx
     inx
+    cpx #128
     bne loop
     iny
     bne loop
