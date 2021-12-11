@@ -756,7 +756,6 @@ align &100 ; hacky, but prevents page transitions in the code
 ; Move the contents of the screen up 64 rows, as in response to down-arrow
 .scroll_down
 {
-    ldx #0
     ldy #64
 .yloop
     ldx #0
@@ -800,7 +799,6 @@ align &100 ; hacky, but prevents page transitions in the code
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
 .scroll_up
 {
-    ldx #0
     ldy #191
 .yloop
     ldx #0
