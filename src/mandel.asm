@@ -753,6 +753,92 @@ align &100 ; hacky, but prevents page transitions in the code
     rts
 }
 
+; Move the contents of the screen right 64 rows, as in response to left-arrow
+.scroll_left
+{
+    ldx #95
+.xloop
+    ldy #0
+.yloop
+    calculate_screen_address
+    phx
+    lda (screenptr)
+    pha
+    txa
+    clc
+    adc #32
+    tax
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    plx
+    iny
+    bne yloop
+    dex
+    dex
+    cpx #255
+    bne xloop
+}
+{
+    ldy #0
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #32
+    bne xloop
+    iny
+    bne yloop
+    rts
+}
+
+; Move the contents of the screen left 64 columns, as in response to right-arrow
+.scroll_right
+{
+    ldx #32
+.xloop
+    ldy #0
+.yloop
+    calculate_screen_address
+    phx
+    lda (screenptr)
+    pha
+    txa
+    sec
+    sbc #32
+    tax
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    plx
+    iny
+    bne yloop
+    inx
+    inx
+    cpx #128
+    bne xloop
+}
+{
+    ldy #0
+.yloop
+    ldx #96
+.xloop
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #128
+    bne xloop
+    iny
+    bne yloop
+    rts
+}
+
 ; Move the contents of the screen up 64 rows, as in response to down-arrow
 .scroll_down
 {
@@ -837,92 +923,6 @@ align &100 ; hacky, but prevents page transitions in the code
     bne xloop
     iny
     cpy #64
-    bne yloop
-    rts
-}
-
-; Move the contents of the screen left 64 columns, as in response to right-arrow
-.scroll_right
-{
-    ldx #32
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
-    sec
-    sbc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    inx
-    inx
-    cpx #128
-    bne xloop
-}
-{
-    ldy #0
-.yloop
-    ldx #96
-.xloop
-    calculate_screen_address
-    lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
-    rts
-}
-
-; Move the contents of the screen right 64 rows, as in response to left-arrow
-.scroll_left
-{
-    ldx #95
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
-    clc
-    adc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    dex
-    dex
-    cpx #255
-    bne xloop
-}
-{
-    ldy #0
-.yloop
-    ldx #0
-.xloop
-    calculate_screen_address
-    lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #32
-    bne xloop
-    iny
     bne yloop
     rts
 }
