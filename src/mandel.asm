@@ -274,7 +274,6 @@ guard mc_top
 
 .main_program_start
     jsr kernel_inout
-    jsr clear_screen
     jsr build_row_table
     jsr build_col_table
 
@@ -287,6 +286,8 @@ guard mc_top
 
     lda #accon_x
     tsb accon
+
+    jsr clear_screen
 
     ; Copy input parameters into the kernel.
 
@@ -726,19 +727,17 @@ align &100 ; hacky, but prevents page transitions in the code
 .clear_screen
 {
     ldx #0
+    ldy #0
 .loop
-    lda bytes, X
-    jsr oswrch
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
     inx
-    cpx #(bytes_end - bytes)
+    inx
+    bne loop
+    iny
     bne loop
     rts
-
-.bytes
-    equb 28, 0, 31, 31, 0   ; define left-hand text window
-    equb 12                 ; clear screen
-    equb 28, 32, 31, 39, 0  ; define right-hand text window
-.bytes_end
 }
 
 
