@@ -730,6 +730,8 @@ align &100 ; hacky, but prevents page transitions in the code
     jmp (scrolltable,x)
 .scrolltable
     equw clear
+    equw clear
+    equw clear
     equw scroll_up
     equw scroll_down
 
