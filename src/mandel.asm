@@ -729,13 +729,13 @@ align &100 ; hacky, but prevents page transitions in the code
     ldx scroll
     jmp (scrolltable,x)
 .scrolltable
-    equw clear
-    equw scroll_right
+    equw clear_screen
     equw scroll_left
-    equw scroll_up
+    equw scroll_right
     equw scroll_down
+    equw scroll_up
 
-.clear
+.clear_screen
 {
     ldy #0
 .yloop
@@ -754,7 +754,7 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 ; Move the contents of the screen up 64 rows, as in response to down-arrow
-.scroll_up
+.scroll_down
 {
     ldx #0
     ldy #64
@@ -798,7 +798,7 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
-.scroll_down
+.scroll_up
 {
     ldx #0
     ldy #191
@@ -844,7 +844,7 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 ; Move the contents of the screen left 64 columns, as in response to right-arrow
-.scroll_left
+.scroll_right
 {
     ldx #32
 .xloop
@@ -887,7 +887,7 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 ; Move the contents of the screen right 64 rows, as in response to left-arrow
-.scroll_right
+.scroll_left
 {
     ldx #95
 .xloop
