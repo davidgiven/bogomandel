@@ -30,8 +30,8 @@ UNTIL G%<>-1
 scroll%=0
 IF G%=129 THEN vr=vr-step: UNTIL TRUE: ENDPROC
 IF G%=130 THEN vr=vr+step: UNTIL TRUE: ENDPROC
-IF G%=131 THEN vi=vi+step:scroll%=1: UNTIL TRUE: ENDPROC
-IF G%=132 THEN vi=vi-step: UNTIL TRUE: ENDPROC
+IF G%=131 THEN vi=vi+step:scroll%=2: UNTIL TRUE: ENDPROC
+IF G%=132 THEN vi=vi-step:scroll%=4: UNTIL TRUE: ENDPROC
 IF G%=140 THEN cr=cr-step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=141 THEN cr=cr+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=142 THEN ci=ci+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC

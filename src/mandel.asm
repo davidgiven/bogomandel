@@ -288,7 +288,7 @@ guard mc_top
     lda #accon_x
     tsb accon
 
-    jsr clear_screen
+    jsr init_screen
 
     ; Copy input parameters into the kernel.
 
@@ -725,11 +725,16 @@ align &100 ; hacky, but prevents page transitions in the code
 
 
 ; Clears the screen between renders.
-.clear_screen
+.init_screen
+    ldx scroll
+    jmp (scrolltable,x)
+.scrolltable
+    equw clear
+    equw scroll_up
+    equw scroll_down
+
+.clear
 {
-    lda scroll
-    cmp #1
-    beq scroll_up
     ldy #0
 .yloop
     ldx #0
@@ -786,6 +791,52 @@ align &100 ; hacky, but prevents page transitions in the code
     cpx #128
     bne xloop
     iny
+    bne yloop
+    rts
+}
+
+; Move the contents of the screen down 64 rows, as in response to up-arrow
+.scroll_down
+{
+    ldx #0
+    ldy #191
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    phy
+    lda (screenptr)
+    pha
+    tya
+    clc
+    adc #64
+    tay
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    ply
+    inx
+    inx
+    cpx #128
+    bne xloop
+    dey
+    cpy #255
+    bne yloop
+}
+{
+    ldy #0
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #128
+    bne xloop
+    iny
+    cpy #64
     bne yloop
     rts
 }
