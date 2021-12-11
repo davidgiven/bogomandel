@@ -55,6 +55,7 @@ org zp_start
 
 .colourflag     equb 0
 .exitflag       equb 0
+.scroll         equb 0
 print "zero page:", ~zp_start, "to", ~P%
 
 ; --- The kernel ------------------------------------------------------------
@@ -726,21 +727,67 @@ align &100 ; hacky, but prevents page transitions in the code
 ; Clears the screen between renders.
 .clear_screen
 {
-    ldx #0
+    lda scroll
+    cmp #1
+    beq scroll_up
     ldy #0
-.loop
+.loopy
+    ldx #0
+.loopx
     calculate_screen_address
     lda #0
     sta (screenptr)
     inx
     inx
     cpx #128
-    bne loop
+    bne loopx
     iny
-    bne loop
+    bne loopy
     rts
 }
 
+; Move the contents of the screen up 64 rows, as in response to down-arrow
+.scroll_up
+{
+    ldx #0
+    ldy #64
+.copyloopy
+    ldx #0
+.copyloopx
+    calculate_screen_address
+    phy
+    lda (screenptr)
+    pha
+    tya
+    clc
+    sbc #64
+    tay
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    ply
+    inx
+    inx
+    cpx #128
+    bne copyloopx
+    iny
+    bne copyloopy
+
+    ldy #192
+.clearloopy
+    ldx #0
+.clearloopx
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #128
+    bne clearloopx
+    iny
+    bne clearloopy
+    rts
+}
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
