@@ -736,8 +736,9 @@ align &100 ; hacky, but prevents page transitions in the code
     equw scroll_up
 
 .clear_screen
-{
     ldy #0
+.clear_to_end_of_screen
+{
 .yloop
     ldx #0
 .xloop
@@ -865,22 +866,8 @@ align &100 ; hacky, but prevents page transitions in the code
     iny
     bne yloop
 }
-{
     ldy #192
-.yloop
-    ldx #0
-.xloop
-    calculate_screen_address
-    lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
-    rts
-}
+    jmp clear_to_end_of_screen
 
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
 .scroll_up
