@@ -731,18 +731,18 @@ align &100 ; hacky, but prevents page transitions in the code
     cmp #1
     beq scroll_up
     ldy #0
-.loopy
+.yloop
     ldx #0
-.loopx
+.xloop
     calculate_screen_address
     lda #0
     sta (screenptr)
     inx
     inx
     cpx #128
-    bne loopx
+    bne xloop
     iny
-    bne loopy
+    bne yloop
     rts
 }
 
@@ -751,9 +751,9 @@ align &100 ; hacky, but prevents page transitions in the code
 {
     ldx #0
     ldy #64
-.copyloopy
+.yloop
     ldx #0
-.copyloopx
+.xloop
     calculate_screen_address
     phy
     lda (screenptr)
@@ -769,23 +769,24 @@ align &100 ; hacky, but prevents page transitions in the code
     inx
     inx
     cpx #128
-    bne copyloopx
+    bne xloop
     iny
-    bne copyloopy
-
+    bne yloop
+}
+{
     ldy #192
-.clearloopy
+.yloop
     ldx #0
-.clearloopx
+.xloop
     calculate_screen_address
     lda #0
     sta (screenptr)
     inx
     inx
     cpx #128
-    bne clearloopx
+    bne xloop
     iny
-    bne clearloopy
+    bne yloop
     rts
 }
 
