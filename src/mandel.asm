@@ -759,7 +759,7 @@ align &100 ; hacky, but prevents page transitions in the code
     lda (screenptr)
     pha
     tya
-    clc
+    sec
     sbc #64
     tay
     calculate_screen_address
