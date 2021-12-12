@@ -740,11 +740,12 @@ align &100 ; hacky, but prevents page transitions in the code
 .clear_to_end_of_screen
 {
 .yloop
-    ldx #0
+    lda row_table_lo, y
+    sta screenptr
     lda row_table_hi, y
     sta screenptr+1
     lda #0
-    sta screenptr
+    ldx #0
 .xloop
     sta (screenptr)
     inc screenptr
