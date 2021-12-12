@@ -42,6 +42,7 @@ org zp_start
 .cr             equw 0
 .ci             equw 0
 .clock          equw 0
+.scroll         equb 0
 
 .screeny        equb 0
 
@@ -55,7 +56,6 @@ org zp_start
 
 .colourflag     equb 0
 .exitflag       equb 0
-.scroll         equb 0
 print "zero page:", ~zp_start, "to", ~P%
 
 ; --- The kernel ------------------------------------------------------------

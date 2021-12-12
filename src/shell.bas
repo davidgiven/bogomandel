@@ -73,7 +73,7 @@ Z%?4=scale*2
 Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
-Z%?22=scroll%
+Z%?12=scroll%
 CALL &2000
 t=(Z%!10 AND &FFFF)/100
 PRINT TAB(0,15);
