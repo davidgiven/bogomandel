@@ -724,7 +724,9 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 
-; Clears the screen between renders.
+; Clears the screen between renders, or scrolls it and clears the bits that
+; need to be re-rendered.  "scroll" is passed in from the shell to tell us
+; what to do.
 .init_screen
     ldx scroll
     jmp (scrolltable,x)
