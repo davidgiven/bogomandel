@@ -741,15 +741,24 @@ align &100 ; hacky, but prevents page transitions in the code
 {
 .yloop
     ldx #0
-.xloop
-    calculate_screen_address
+    lda row_table_hi, y
+    sta screenptr+1
     lda #0
+    sta screenptr
+.xloop
     sta (screenptr)
+    inc screenptr
+    sta (screenptr)
+    inc screenptr
+    bne no_carry
+    inc screenptr+1
+.no_carry
     inx
-    inx
-    cpx #128
     bne xloop
-    iny
+    tya
+    clc
+    adc #8
+    tay
     bne yloop
     rts
 }
