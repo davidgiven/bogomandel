@@ -82,7 +82,17 @@ print "zero page:", ~zp_start, "to", ~P%
 
     ; Calculate zr^2 + zi^2. 
 
-    clc
+    lda zr+1
+    cmp #&60            ; zr < &6000?
+    bcc bailout
+    cmp #&c0            ; zr >= &c000?
+    bcs bailout
+    lda zi+1
+    cmp #&60            ; zr < &6000?
+    bcc bailout
+    cmp #&c0            ; zr >= &c000?
+    bcs bailout
+    ; clc               ; already clear
 zr = *+1
     lda 9999            ; A = low(zr^2) 
     tax                 
@@ -111,6 +121,10 @@ zi = *+1
 lowbyteoftable = * + 1
     equb &ad ; lda abs
     equw fixup_table
+    ;cmp #&60            ; zr < &6000?
+    ;bcc bailout
+    ;cmp #&c0            ; zr >= &c000?
+    ;bcs bailout
     sta zr_p_zi+1
 
     ; Calculate zr^2 - zi^2. 
