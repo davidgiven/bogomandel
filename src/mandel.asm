@@ -71,7 +71,8 @@ print "zero page:", ~zp_start, "to", ~P%
 ; Those numbers that need to be squared (zr, zi, and zr_p_zi) are
 ; stored with inverted top bits so they can be used directly as
 ; addresses, as are values passed in from outside (ci and cr).  Other
-; numbers are generally kept in their natural form.
+; numbers are generally kept in their natural form, as are results
+; from the squaring table.
 
     org &0
     guard &a0
@@ -166,7 +167,6 @@ kernel_ci_lo = *+1
     tya
 kernel_ci_hi = *+1
     adc #99
-    eor #&80
     sta zi+1
 
     dec iterations
@@ -1071,7 +1071,7 @@ guard &c000
 
         ; result is a square, and so is always positive! So we need to lose
         ; the sign bit.
-        result = ((clampedsquare * (1<<fraction_bits)) and &fffe) eor &8000
+        result = (clampedsquare * (1<<fraction_bits)) and &fffe
 
         ;print real, ~address, square, ~result
 
