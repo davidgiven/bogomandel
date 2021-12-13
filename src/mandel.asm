@@ -100,7 +100,7 @@ zi = *+1
     adc 9999            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
-    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2)
+    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
     cmp #4 << (fraction_bits-8)
     bcs bailout
     sta zr2_p_zi2_hi
@@ -112,14 +112,14 @@ zi = *+1
     adc zi+0            ; A = low(zr + zi) 
     sta zr_p_zi+0
     lda zr+1            ; A = high(zr) 
-    adc zi+1            ; A = high(zr + zi) + C
+    adc zi+1            ; A = high(zr + zi) + C 
     eor #&80
 
     cmp #&40            ; -4.0 <= (zr + zi) < 4.0?
     bmi bailout         ; if not, bail
     sta zr_p_zi+1
 
-    ; Calculate zr^2 - zi^2.
+    ; Calculate zr^2 - zi^2. 
     ; We know from earlier checks that zi and zr are in range
 
     txa                 ; A = low(zr^2) 
@@ -127,7 +127,7 @@ zi = *+1
     sbc (zi)            ; A = low(zr^2 - zi^2) 
     tax
     lda (zr), y         ; A = high(zr^2) 
-    sbc (zi), y         ; A = high(zr^2 - zi^2)
+    sbc (zi), y         ; A = high(zr^2 - zi^2) 
     sta zr2_m_zi2_hi
 
     ; Calculate zr = (zr^2 - zi^2) + cr. 
@@ -153,7 +153,7 @@ zr2_p_zi2_lo = *+1
     tax
     lda (zr_p_zi), y    ; A = high((zr + zi)^2) 
 zr2_p_zi2_hi = *+1
-    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2))
+    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2)) 
     tay
 
     ; Calculate zi = zi' + ci. 
