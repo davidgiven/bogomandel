@@ -1,6 +1,6 @@
 ITERATIONS = 32
 
-fraction_bits = 11 ; including the bottom 0
+fraction_bits = 12 ; including the bottom 0
 integer_bits = 4
 total_bits = fraction_bits + integer_bits
 
@@ -83,14 +83,14 @@ print "zero page:", ~zp_start, "to", ~P%
     ; Calculate zr^2 + zi^2. 
 
     lda zr+1
-    cmp #&60            ; zr < &6000?
+    cmp #&40            ; zr < &4000?
     bcc bailout
     cmp #&c0            ; zr >= &c000?
     bcs bailout
     lda zi+1
-    cmp #&60            ; zr < &6000?
+    cmp #&40            ; zi < &4000?
     bcc bailout
-    cmp #&c0            ; zr >= &c000?
+    cmp #&c0            ; zi >= &c000?
     bcs bailout
     ; clc               ; already clear
 zr = *+1
@@ -101,10 +101,11 @@ zi = *+1
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
-    sta zr2_p_zi2_hi
     and #&7f
     cmp #4 << (fraction_bits-8)
     bcs bailout
+    eor #&80            ; flip sign bit for storage
+    sta zr2_p_zi2_hi
 
     ; Calculate zr + zi. 
 
@@ -113,18 +114,13 @@ zi = *+1
     adc zi+0            ; A = low(zr + zi) 
     sta zr_p_zi+0
     lda zr+1            ; A = high(zr) 
-    adc zi+1            ; A = high(zr + zi) + C 
+    adc zi+1            ; A = high(zr + zi) + C
+    eor #&80
 
-    ; Both X and Y are in use, so we use self-modifying code to avoid needing
-    ; to disturb them. One cycle longer that tax; lda fixup_table, X.
-    sta lowbyteoftable
-lowbyteoftable = * + 1
-    equb &ad ; lda abs
-    equw fixup_table
-    ;cmp #&60            ; zr < &6000?
-    ;bcc bailout
-    ;cmp #&c0            ; zr >= &c000?
-    ;bcs bailout
+    cmp #&40            ; (zr + zi) < &4000?
+    bcc bailout
+    cmp #&c0            ; (zr + zi) >= &c000?
+    bcs bailout
     sta zr_p_zi+1
 
     ; Calculate zr^2 - zi^2. 
@@ -134,7 +130,8 @@ lowbyteoftable = * + 1
     sbc (zi)            ; A = low(zr^2 - zi^2) 
     tax
     lda (zr), y         ; A = high(zr^2) 
-    sbc (zi), y         ; A = high(zr^2 - zi^2) 
+    sbc (zi), y         ; A = high(zr^2 - zi^2)
+    eor #&80
     sta zr2_m_zi2_hi
 
     ; Calculate zr = (zr^2 - zi^2) + cr. 
@@ -147,9 +144,8 @@ kernel_cr_lo = *+1
 zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
 kernel_cr_hi = *+1
-    adc #99             ; A = high(zr^2 - zi^2 + cr) 
-    tax
-    equb &bd: equw fixup_table ; lda fixup_table, X
+    adc #99             ; A = high(zr^2 - zi^2 + cr)
+    eor #&80
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -162,7 +158,8 @@ zr2_p_zi2_lo = *+1
     tax
     lda (zr_p_zi), y    ; A = high((zr + zi)^2) 
 zr2_p_zi2_hi = *+1
-    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2)) 
+    sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2))
+    eor #&80
     tay
 
     ; Calculate zi = zi' + ci. 
@@ -175,8 +172,7 @@ kernel_ci_lo = *+1
     tya
 kernel_ci_hi = *+1
     adc #99
-    tax
-    equb &bd: equw fixup_table ; lda fixup_table, X
+    eor #&80
     sta zi+1
 
     dec iterations
@@ -798,8 +794,7 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zi+0
 
-    ldx zi+1
-    lda fixup_table, X
+    lda zi+1
     sta pixels_to_zi_hi, Y
     adc #0
     sta zi+1
@@ -820,8 +815,7 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zr+0
 
-    ldx zr+1
-    lda fixup_table, X
+    lda zr+1
     sta pixels_to_zr_hi, Y
     adc #0
     sta zr+1
@@ -1076,21 +1070,12 @@ guard &c000
 
 .squares_start
 {
-    for i, 0, (1<<total_bits)-1, 2
-        if i >= (1<<total_bits)/2
-            extended = i - (1<<total_bits)
-        else
-            extended = i
-        endif
+    for extended, -(1<<total_bits)/4, (1<<total_bits)/4-1, 2
         real = extended / (1<<fraction_bits)
         square = real^2
 
         ; Calculate the address of this number (taking into account the fixup).
-        if extended and &4000
-            address = extended and &7ffe
-        else
-            address = extended and &7ffe or &8000
-        endif
+	address = (extended and &fffe) eor &8000
 
         ; Clamp the result at MAXINT.
         if square > (1<<integer_bits)/2
@@ -1101,7 +1086,7 @@ guard &c000
 
         ; result is a square, and so is always positive! So we need to lose
         ; the sign bit.
-        result = (clampedsquare * (1<<fraction_bits)) and &3ffe or &8000
+        result = ((clampedsquare * (1<<fraction_bits)) and &fffe) eor &8000
 
         ;print real, ~address, square, ~result
 
