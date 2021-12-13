@@ -87,12 +87,11 @@ print "zero page:", ~zp_start, "to", ~P%
 
     ; Calculate zr^2 + zi^2. 
 
-    lda zr+1
-    cmp #&40            ; -4.0 <= zr < 4.0?
-    bmi bailout         ; if not, bail
-    lda zi+1
-    cmp #&40            ; -4.0 <= zi < 4.0?
-    bmi bailout         ; if not, bail
+    lda #&3F
+    cmp zr+1            ; -4.0 <= zr < 4.0?
+    bpl bailout         ; if not, bail
+    cmp zi+1            ; -4.0 <= zi < 4.0?
+    bpl bailout         ; if not, bail
     clc
 zr = *+1
     lda 9999            ; A = low(zr^2) 
