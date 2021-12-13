@@ -96,8 +96,7 @@ zi = *+1
     adc 9999            ; A = low(zr^2) + low(zi^2) = low(zr^2 + zi^2) 
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
-    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
-    and #&7f
+    adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2)
     cmp #4 << (fraction_bits-8)
     bcs bailout
     eor #&80            ; flip sign bit for storage
