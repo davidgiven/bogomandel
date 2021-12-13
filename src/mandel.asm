@@ -67,6 +67,11 @@ print "zero page:", ~zp_start, "to", ~P%
 ; pixel; this allows us to inline a lot of variables for speed and use a
 ; very cunning trick (suggested by rtw) for using tsb for the read/modify/
 ; write operation to put the pixel on the screen.
+;
+; Those numbers that need to be squared (zr, zi, and zr_p_zi) are
+; stored with inverted top bits so they can be used directly as
+; addresses, as are values passed in from outside (ci and cr).  Other
+; numbers are generally kept in their natural form.
 
     org &0
     guard &a0
@@ -99,7 +104,6 @@ zi = *+1
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2)
     cmp #4 << (fraction_bits-8)
     bcs bailout
-    eor #&80            ; flip sign bit for storage
     sta zr2_p_zi2_hi
 
     ; Calculate zr + zi. 
@@ -125,7 +129,6 @@ zi = *+1
     tax
     lda (zr), y         ; A = high(zr^2) 
     sbc (zi), y         ; A = high(zr^2 - zi^2)
-    eor #&80
     sta zr2_m_zi2_hi
 
     ; Calculate zr = (zr^2 - zi^2) + cr. 
@@ -139,7 +142,6 @@ zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
 kernel_cr_hi = *+1
     adc #99             ; A = high(zr^2 - zi^2 + cr)
-    eor #&80
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -153,7 +155,6 @@ zr2_p_zi2_lo = *+1
     lda (zr_p_zi), y    ; A = high((zr + zi)^2) 
 zr2_p_zi2_hi = *+1
     sbc #99             ; A = high((zr + zi)^2 - (zr^2 + zi^2))
-    eor #&80
     tay
 
     ; Calculate zi = zi' + ci. 
