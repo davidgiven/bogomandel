@@ -83,16 +83,12 @@ print "zero page:", ~zp_start, "to", ~P%
     ; Calculate zr^2 + zi^2. 
 
     lda zr+1
-    cmp #&40            ; zr < &4000?
-    bcc bailout
-    cmp #&c0            ; zr >= &c000?
-    bcs bailout
+    cmp #&40            ; -4.0 <= zr < 4.0?
+    bmi bailout         ; if not, bail
     lda zi+1
-    cmp #&40            ; zi < &4000?
-    bcc bailout
-    cmp #&c0            ; zi >= &c000?
-    bcs bailout
-    ; clc               ; already clear
+    cmp #&40            ; -4.0 <= zi < 4.0?
+    bmi bailout         ; if not, bail
+    clc
 zr = *+1
     lda 9999            ; A = low(zr^2) 
     tax                 
@@ -117,13 +113,12 @@ zi = *+1
     adc zi+1            ; A = high(zr + zi) + C
     eor #&80
 
-    cmp #&40            ; (zr + zi) < &4000?
-    bcc bailout
-    cmp #&c0            ; (zr + zi) >= &c000?
-    bcs bailout
+    cmp #&40            ; -4.0 <= (zr + zi) < 4.0?
+    bmi bailout         ; if not, bail
     sta zr_p_zi+1
 
-    ; Calculate zr^2 - zi^2. 
+    ; Calculate zr^2 - zi^2.
+    ; We know from earlier checks that zi and zr are in range
 
     txa                 ; A = low(zr^2) 
     sec
