@@ -1073,7 +1073,7 @@ guard &c000
         ; the sign bit.
         result = (clampedsquare * (1<<fraction_bits)) and &fffe
 
-        ;print real, ~address, square, ~result
+        ;print real, ~address, square, ~result, (result / (1<<fraction_bits) - square) * (1<<fraction_bits) / 2, "ulp"
 
         org address
         equw result
