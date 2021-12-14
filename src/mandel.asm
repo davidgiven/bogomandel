@@ -1063,15 +1063,14 @@ guard &c000
 	address = (extended and &fffe) eor &8000
 
         ; Clamp the result at MAXINT.
-        if square > (1<<integer_bits)/2
-            clampedsquare = (1<<integer_bits)/2 - 1/(1<<fraction_bits)
+	clamp = (1<<(integer_bits - 1)) - 2/(1<<fraction_bits)
+        if square > clamp
+            clampedsquare = clamp
         else
             clampedsquare = square
         endif
 
-        ; result is a square, and so is always positive! So we need to lose
-        ; the sign bit.
-        result = (clampedsquare * (1<<fraction_bits)) and &fffe
+        result = INT(clampedsquare * (1<<(fraction_bits - 1)) + 0.5) << 1
 
         ;print real, ~address, square, ~result, (result / (1<<fraction_bits) - square) * (1<<fraction_bits) / 2, "ulp"
 
