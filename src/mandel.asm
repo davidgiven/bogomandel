@@ -1,6 +1,6 @@
 ITERATIONS = 32
 
-fraction_bits = 11 ; including the bottom 0
+fraction_bits = 12 ; including the bottom 0
 integer_bits = 4
 total_bits = fraction_bits + integer_bits
 
@@ -68,6 +68,12 @@ print "zero page:", ~zp_start, "to", ~P%
 ; pixel; this allows us to inline a lot of variables for speed and use a
 ; very cunning trick (suggested by rtw) for using tsb for the read/modify/
 ; write operation to put the pixel on the screen.
+;
+; Those numbers that need to be squared (zr, zi, and zr_p_zi) are
+; stored with inverted top bits so they can be used directly as
+; addresses, as are values passed in from outside (ci and cr).  Other
+; numbers are generally kept in their natural form, as are results
+; from the squaring table.
 
     org &0
     guard &a0
@@ -83,6 +89,11 @@ print "zero page:", ~zp_start, "to", ~P%
 
     ; Calculate zr^2 + zi^2. 
 
+    lda #&3F
+    cmp zr+1            ; -4.0 <= zr < 4.0?
+    bpl bailout         ; if not, bail
+    cmp zi+1            ; -4.0 <= zi < 4.0?
+    bpl bailout         ; if not, bail
     clc
 zr = *+1
     lda 9999            ; A = low(zr^2) 
@@ -92,10 +103,9 @@ zi = *+1
     sta zr2_p_zi2_lo
     lda (zr), y         ; A = high(zr^2) 
     adc (zi), y         ; A = high(zr^2) + high(zi^2) = high(zr^2 + zi^2) 
-    sta zr2_p_zi2_hi
-    and #&7f
     cmp #4 << (fraction_bits-8)
     bcs bailout
+    sta zr2_p_zi2_hi
 
     ; Calculate zr + zi. 
 
@@ -105,16 +115,14 @@ zi = *+1
     sta zr_p_zi+0
     lda zr+1            ; A = high(zr) 
     adc zi+1            ; A = high(zr + zi) + C 
+    eor #&80
 
-    ; Both X and Y are in use, so we use self-modifying code to avoid needing
-    ; to disturb them. One cycle longer that tax; lda fixup_table, X.
-    sta lowbyteoftable
-lowbyteoftable = * + 1
-    equb &ad ; lda abs
-    equw fixup_table
+    cmp #&40            ; -4.0 <= (zr + zi) < 4.0?
+    bmi bailout         ; if not, bail
     sta zr_p_zi+1
 
     ; Calculate zr^2 - zi^2. 
+    ; We know from earlier checks that zi and zr are in range
 
     txa                 ; A = low(zr^2) 
     sec
@@ -134,9 +142,7 @@ kernel_cr_lo = *+1
 zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
 kernel_cr_hi = *+1
-    adc #99             ; A = high(zr^2 - zi^2 + cr) 
-    tax
-    equb &bd: equw fixup_table ; lda fixup_table, X
+    adc #99             ; A = high(zr^2 - zi^2 + cr)
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -162,8 +168,6 @@ kernel_ci_lo = *+1
     tya
 kernel_ci_hi = *+1
     adc #99
-    tax
-    equb &bd: equw fixup_table ; lda fixup_table, X
     sta zi+1
 
     dec iterations
@@ -978,8 +982,7 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zi+0
 
-    ldx zi+1
-    lda fixup_table, X
+    lda zi+1
     sta pixels_to_zi_hi, Y
     adc #0
     sta zi+1
@@ -1000,8 +1003,7 @@ temp = screenptr ; hacky temporary storage
     adc step
     sta zr+0
 
-    ldx zr+1
-    lda fixup_table, X
+    lda zr+1
     sta pixels_to_zr_hi, Y
     adc #0
     sta zr+1
@@ -1084,15 +1086,6 @@ temp = screenptr ; hacky temporary storage
 .kernel_data
     skip kernel_size
     copyblock kernel, kernel_end, kernel_data
-
-; Used to fixup the high byte of a number, so that it's a valid pointer to its
-; own square in the lookup table. The table runs from &4000 to &C000, and the
-; rule is that bit7 = !bit6.
-align &100 ; must be page aligned
-.fixup_table
-    for i, 0, 255
-        equb (i and &7f) or (i and &40 eor &40)<<1
-    next
 
 ; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
 align &100 ; must be page aligned
@@ -1256,34 +1249,24 @@ guard &c000
 
 .squares_start
 {
-    for i, 0, (1<<total_bits)-1, 2
-        if i >= (1<<total_bits)/2
-            extended = i - (1<<total_bits)
-        else
-            extended = i
-        endif
+    for extended, -(1<<total_bits)/4, (1<<total_bits)/4-1, 2
         real = extended / (1<<fraction_bits)
         square = real^2
 
         ; Calculate the address of this number (taking into account the fixup).
-        if extended and &4000
-            address = extended and &7ffe
-        else
-            address = extended and &7ffe or &8000
-        endif
+	address = (extended and &fffe) eor &8000
 
         ; Clamp the result at MAXINT.
-        if square > (1<<integer_bits)/2
-            clampedsquare = (1<<integer_bits)/2 - 1/(1<<fraction_bits)
+	clamp = (1<<(integer_bits - 1)) - 2/(1<<fraction_bits)
+        if square > clamp
+            clampedsquare = clamp
         else
             clampedsquare = square
         endif
 
-        ; result is a square, and so is always positive! So we need to lose
-        ; the sign bit.
-        result = (clampedsquare * (1<<fraction_bits)) and &3ffe or &8000
+        result = INT(clampedsquare * (1<<(fraction_bits - 1)) + 0.5) << 1
 
-        ;print real, ~address, square, ~result
+        ;print real, ~address, square, ~result, (result / (1<<fraction_bits) - square) * (1<<fraction_bits) / 2, "ulp"
 
         org address
         equw result

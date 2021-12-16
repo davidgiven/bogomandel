@@ -36,7 +36,7 @@ IF G%=140 THEN cr=cr-step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=141 THEN cr=cr+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=142 THEN ci=ci+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=143 THEN ci=ci-step/ 5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
-IF G%=43 AND scale>1 THEN scale=scale/2: UNTIL TRUE: ENDPROC
+IF G%=43 AND scale>0.5 THEN scale=scale/2: UNTIL TRUE: ENDPROC
 IF G%=45 AND scale<16 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
 IF G%=13 THEN UNTIL TRUE: ENDPROC
@@ -69,7 +69,7 @@ PROCbanner
 TIME=0
 Z%!0=FNfixed(vr)
 Z%!2=FNfixed(vi)
-Z%?4=scale*2
+Z%?4=scale*4
 Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
@@ -84,9 +84,7 @@ COLOUR 7: PRINT 't: COLOUR 3: PRINT "   secs"
 ENDPROC
 
 DEFFNfixed(r)
-r=(r*1024) AND &7FFE
-IF NOT (r AND &4000) THEN r=r OR &8000
-=r
+=(r*2048) AND &FFFE EOR &8000
 
 DEFPROCdrawcursor
 IF NOT M% THEN ENDPROC
