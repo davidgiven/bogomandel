@@ -42,6 +42,7 @@ org zp_start
 .cr             equw 0
 .ci             equw 0
 .clock          equw 0
+.scroll         equb 0
 
 .screeny        equb 0
 
@@ -274,7 +275,6 @@ guard mc_top
 
 .main_program_start
     jsr kernel_inout
-    jsr clear_screen
     jsr build_row_table
     jsr build_col_table
 
@@ -287,6 +287,8 @@ guard mc_top
 
     lda #accon_x
     tsb accon
+
+    jsr init_screen
 
     ; Copy input parameters into the kernel.
 
@@ -722,25 +724,217 @@ align &100 ; hacky, but prevents page transitions in the code
 }
 
 
-; Clears the screen between renders.
-.clear_screen
-{
-    ldx #0
-.loop
-    lda bytes, X
-    jsr oswrch
-    inx
-    cpx #(bytes_end - bytes)
-    bne loop
-    rts
+; Clears the screen between renders, or scrolls it and clears the bits that
+; need to be re-rendered.  "scroll" is passed in from the shell to tell us
+; what to do.
+.init_screen
+    ldx scroll
+    jmp (scrolltable,x)
+.scrolltable
+    equw clear_screen
+    equw scroll_left
+    equw scroll_right
+    equw scroll_down
+    equw scroll_up
 
-.bytes
-    equb 28, 0, 31, 31, 0   ; define left-hand text window
-    equb 12                 ; clear screen
-    equb 28, 32, 31, 39, 0  ; define right-hand text window
-.bytes_end
+.clear_screen
+    ldy #0
+.clear_to_end_of_screen
+{
+.yloop
+    lda row_table_lo, y
+    sta screenptr
+    lda row_table_hi, y
+    sta screenptr+1
+    lda #0
+    ldx #0
+.xloop
+    sta (screenptr)
+    inc screenptr
+    sta (screenptr)
+    inc screenptr
+    bne no_carry
+    inc screenptr+1
+.no_carry
+    inx
+    bne xloop
+    tya
+    clc
+    adc #8
+    tay
+    bne yloop
+    rts
 }
 
+; Move the contents of the screen right 32 columns, as in response to left-arrow
+.scroll_left
+{
+    ldx #95
+.xloop
+    ldy #0
+.yloop
+    calculate_screen_address
+    phx
+    lda (screenptr)
+    pha
+    txa
+    clc
+    adc #32
+    tax
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    plx
+    iny
+    bne yloop
+    dex
+    dex
+    cpx #255
+    bne xloop
+}
+{
+    ldy #0
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #32
+    bne xloop
+    iny
+    bne yloop
+    rts
+}
+
+; Move the contents of the screen left 32 columns, as in response to right-arrow
+.scroll_right
+{
+    ldx #32
+.xloop
+    ldy #0
+.yloop
+    calculate_screen_address
+    phx
+    lda (screenptr)
+    pha
+    txa
+    sec
+    sbc #32
+    tax
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    plx
+    iny
+    bne yloop
+    inx
+    inx
+    cpx #128
+    bne xloop
+}
+{
+    ldy #0
+.yloop
+    ldx #96
+.xloop
+    calculate_screen_address
+    lda #0
+    sta (screenptr)
+    inx
+    inx
+    cpx #128
+    bne xloop
+    iny
+    bne yloop
+    rts
+}
+
+; Move the contents of the screen up 64 rows, as in response to down-arrow
+.scroll_down
+{
+    ldy #64
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    phy
+    lda (screenptr)
+    pha
+    tya
+    sec
+    sbc #64
+    tay
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    ply
+    inx
+    inx
+    cpx #128
+    bne xloop
+    iny
+    bne yloop
+}
+    ldy #192
+    jmp clear_to_end_of_screen
+
+; Move the contents of the screen down 64 rows, as in response to up-arrow
+.scroll_up
+{
+    ldy #191
+.yloop
+    ldx #0
+.xloop
+    calculate_screen_address
+    phy
+    lda (screenptr)
+    pha
+    tya
+    clc
+    adc #64
+    tay
+    calculate_screen_address
+    pla
+    sta (screenptr)
+    ply
+    inx
+    inx
+    cpx #128
+    bne xloop
+    dey
+    cpy #255
+    bne yloop
+}
+{
+    ldy #0
+.yloop
+    lda row_table_lo, y
+    sta screenptr
+    lda row_table_hi, y
+    sta screenptr+1
+    lda #0
+    ldx #0
+.xloop
+    sta (screenptr)
+    inc screenptr
+    sta (screenptr)
+    inc screenptr
+    bne no_carry
+    inc screenptr+1
+.no_carry
+    inx
+    bne xloop
+    tya
+    clc
+    adc #8
+    tay
+    cpy #64	
+    bne yloop
+    rts
+}
 
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
