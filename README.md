@@ -51,7 +51,7 @@ Two-clause BSD; see the COPYING file. Go nuts.
 
 ## Who?
 
-This was written by two people:
+This was written by three people:
 
 Most of the program was by myself, David Given <dg@cowlark.com>; I have a
 website at http://cowlark.com. There may or may not be anything interesting
@@ -62,3 +62,5 @@ Mandelbrots on the 8088 led to this program, so you might like to check out
 http://github.com/reenigne/reenigne/tree/master/8088/mandel. (This was then
 somewhat hacked by me, so bugs will be my fault.)
 
+Ben Harris extended the kernel to support an additional bit of
+precision and made scrolling work sensibly.
