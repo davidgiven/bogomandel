@@ -5,7 +5,7 @@ PROCcenter("„the increasingly inaccurately named", 5, 1)
 PROCcenter("†B O G O M A N D E L", 6, 2)
 PROCcenter("†B O G O M A N D E L", 7, 2)
 PROCcenter("„is loading", 12, 1)
-PROCcenter("ˆExtended precision version", 17, 1)
+PROCcenter("ˆSuper-extended precision version", 17, 1)
 PROCcenter("(because renaming Github", 23, 1)
 PROCcenter("repositories is hard)", 24, 1)
 *exec
