@@ -6,7 +6,7 @@ PROCcenter("ÜçB O G O M A N D E L", 6, 2)
 PROCcenter("ÜçB O G O M A N D E L", 7, 2)
 PROCcenter("Ñis loading", 12, 1)
 PROCcenter("àSuper-extended precision version", 17, 1)
-PROCcenter("Å(because renaming Github", 23, 1)
+PROCcenter("Å(because renaming GitHub", 23, 1)
 PROCcenter("Årepositories is hard)", 24, 1)
 *exec
 *fx 21,0
