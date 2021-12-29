@@ -816,43 +816,62 @@ dest = * + 1
 ; Move the contents of the screen left 32 columns, as in response to right-arrow
 .scroll_right
 {
-    ldx #32
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
-    sec
-    sbc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    inx
-    inx
-    cpx #128
-    bne xloop
+    lda #&30
+    sta src+1
+    lda #&2f
+    sta dest+1
+    ldx #0
+    ldx #&80            ; start the loop with the counter already at &80
+    ldy #2
+.loop
+src = * + 1
+    lda &3000, x        ; so these need to start &80 below the start addresses
+dest = * + 1
+    sta &2f80, x
+    inx                 ; advance to next byte
+    bne loop            ; count bytes to 256 (128 cycles the first time)
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 128/256-byte blocks with Y
+    bne loop            ; loop until we've done 384 bytes
+    ldx #&80
+    ldy #2
+    clc
+    lda dest             ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    bcc skip
+    inc dest+1
+    clc
+.skip
+    lda src
+    adc #&80
+    sta src
+    bcc loop
+    inc src+1
+    bpl loop            ; loop until src hits &8000 which is end of screen
 }
 {
-    ldy #0
-.yloop
-    ldx #96
-.xloop
-    calculate_screen_address
+    lda #&31
+    sta dest+1
+    ; lda #&80          ; the last run should have left dest set to &8180
+    ; sta dest          ; so no need to reset the low-order byte
+.loopa
+    ldx #0              ; jump back to here if we need to reset A and X
     lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
+.loop
+dest = * + 1
+    sta &3180, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bpl loop            ; loop until we've done 128 bytes
+    clc
+    lda dest            ; add &280 bytes to get to next line
+    adc #&80
+    sta dest
+    lda dest+1
+    adc #&02
+    sta dest+1
+    bpl loopa           ; loop until we hit &8180
     rts
 }
 
