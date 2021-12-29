@@ -746,8 +746,8 @@ align &100 ; hacky, but prevents page transitions in the code
     lda #&30
 .*clear_to_end_of_screen
     sta dest+1
-    lda #&00
-    sta dest
+    lda #&00            ; the last run should have left dest set to &8000
+    ; sta dest          ; so no need to reset the low-order byte
     ldx #0
     ldy #2
 .loop
