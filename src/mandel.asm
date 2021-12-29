@@ -893,55 +893,68 @@ dest = * + 1
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
 .scroll_up
 {
-    ldy #191
-.yloop
+    lda #&69
+    sta src+1
+    lda #&7d
+    sta dest+1
     ldx #0
-.xloop
-    calculate_screen_address
-    phy
-    lda (screenptr)
-    pha
-    tya
-    clc
-    adc #64
-    tay
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    ply
-    inx
-    inx
-    cpx #128
-    bne xloop
-    dey
-    cpy #255
-    bne yloop
+    ldy #2
+.loop
+src = * + 1
+    lda &6980, x
+dest = * + 1
+    sta &7d80, x
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
+    sec
+    lda src             ; subtract &480 bytes to get to the previous row
+    sbc #&80
+    sta src
+    sta dest            ; src and dest low-order bytes change in parallel
+    php                 ; save carry flag for src later
+    lda dest+1
+    sbc #&04
+    sta dest+1
+    plp
+    lda src+1
+    sbc #&04
+    sta src+1
+    cmp #&2d
+    bne loop            ; loop until src passes &3000 which is start of screen
 }
 {
-    ldy #0
-.yloop
-    lda row_table_lo, y
-    sta screenptr
-    lda row_table_hi, y
-    sta screenptr+1
-    lda #0
+    lda #&30
+    sta dest+1
+    ; lda #&00          ; the last run should have left dest set to &4400
+    ; sta dest          ; so no need to reset the low-order byte
     ldx #0
-.xloop
-    sta (screenptr)
-    inc screenptr
-    sta (screenptr)
-    inc screenptr
-    bne no_carry
-    inc screenptr+1
-.no_carry
-    inx
-    bne xloop
-    tya
+    ldy #2
+.loopa
+    lda #0              ; jump back to here if we need to reset A
+.loop
+dest = * + 1
+    sta &3000, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc dest+1          ; then increment high-order byte of address
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
     clc
-    adc #8
-    tay
-    cpy #64	
-    bne yloop
+    lda dest            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    bcc loopa
+    lda dest+1
+    inc a
+    sta dest+1
+    cmp #&44
+    bne loopa           ; loop until we hit &4400
     rts
 }
 
