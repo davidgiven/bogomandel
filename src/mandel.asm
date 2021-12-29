@@ -773,45 +773,44 @@ dest = * + 1
 ; Move the contents of the screen right 32 columns, as in response to left-arrow
 .scroll_left
 {
-    ldx #95
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
+    lda #&31
+    sta src+1
+    lda #&31
+    sta dest+1
+    ldx #&80            ; start the loop with the counter already at &80
+    ldy #2
+.loop
+    dex                 ; advance to previous byte
+src = * + 1
+    lda &3100, x        ; so these need to start &80 below the start addresses
+dest = * + 1
+    sta &3180, x
+    cpx #0
+    bne loop            ; count bytes to 0 (128 cycles the first time)
+    dec src+1           ; then decrement high-order bytes of addresses
+    dec dest+1
+    dey                 ; keep track of 128/256-byte blocks with Y
+    bne loop            ; loop until we've done 384 bytes
+    ldx #&80
+    ldy #2
     clc
-    adc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    dex
-    dex
-    cpx #255
-    bne xloop
+    lda dest             ; add &480 bytes to get to the next line
+    adc #&80
+    sta dest
+    lda dest+1
+    adc #&04
+    sta dest+1
+    lda src
+    adc #&80
+    sta src
+    lda src+1
+    adc #&04
+    sta src+1
+    bpl loop            ; loop until src passes &8000 which is end of screen
 }
-{
-    ldy #0
-.yloop
-    ldx #0
-.xloop
-    calculate_screen_address
-    lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #32
-    bne xloop
-    iny
-    bne yloop
-    rts
-}
+    lda #&30
+    ldx #&00
+    jmp clear_column
 
 ; Move the contents of the screen left 32 columns, as in response to right-arrow
 .scroll_right
@@ -851,13 +850,13 @@ dest = * + 1
     inc src+1
     bpl loop            ; loop until src hits &8000 which is end of screen
 }
-{
     lda #&31
-    sta dest+1
-    ; lda #&80          ; the last run should have left dest set to &8180
-    ; sta dest          ; so no need to reset the low-order byte
+    ldx #&80            ; the last run should have left dest set to &8180
+.clear_column
+{   sta dest+1
+    stx dest            ; so no need to reset the low-order byte
 .loopa
-    ldx #0              ; jump back to here if we need to reset A and X
+    ldx #0              ; jump back to here if we need to reset A
     lda #0
 .loop
 dest = * + 1
@@ -871,7 +870,7 @@ dest = * + 1
     lda dest+1
     adc #&02
     sta dest+1
-    bpl loopa           ; loop until we hit &8180
+    bpl loopa           ; loop until we pass &8000
     rts
 }
 
