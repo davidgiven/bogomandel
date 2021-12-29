@@ -730,7 +730,7 @@ align &100 ; hacky, but prevents page transitions in the code
 
 ; Clears the screen between renders, or scrolls it and clears the bits that
 ; need to be re-rendered.  "scroll" is passed in from the shell to tell us
-; what to do.
+; what to do.  This code depends on intimate knowledge of the screen layout.
 .init_screen
     ldx scroll
     jmp (scrolltable,x)
@@ -744,6 +744,7 @@ align &100 ; hacky, but prevents page transitions in the code
 .clear_screen
 {
     lda #&30
+.*clear_to_end_of_screen
     sta dest+1
     lda #&00
     sta dest
@@ -766,33 +767,6 @@ dest = * + 1
     bcc loop
     inc dest+1
     bpl loop            ; loop until we hit &8000 which is end of screen
-    rts
-}
-
-.clear_to_end_of_screen
-{
-.yloop
-    lda row_table_lo, y
-    sta screenptr
-    lda row_table_hi, y
-    sta screenptr+1
-    lda #0
-    ldx #0
-.xloop
-    sta (screenptr)
-    inc screenptr
-    sta (screenptr)
-    inc screenptr
-    bne no_carry
-    inc screenptr+1
-.no_carry
-    inx
-    bne xloop
-    tya
-    clc
-    adc #8
-    tay
-    bne yloop
     rts
 }
 
@@ -908,7 +882,7 @@ dest = * + 1
     iny
     bne yloop
 }
-    ldy #192
+    lda #&6c
     jmp clear_to_end_of_screen
 
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
