@@ -742,7 +742,33 @@ align &100 ; hacky, but prevents page transitions in the code
     equw scroll_up
 
 .clear_screen
-    ldy #0
+{
+    lda #&30
+    sta dest+1
+    lda #&00
+    sta dest
+    ldx #0
+    ldy #2
+.loop
+dest = * + 1
+    sta &3000, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc dest+1          ; then increment high-order byte of address
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
+    clc
+    lda dest            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    lda #0
+    bcc loop
+    inc dest+1
+    bpl loop            ; loop until we hit &8000 which is end of screen
+    rts
+}
+
 .clear_to_end_of_screen
 {
 .yloop
