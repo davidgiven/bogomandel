@@ -859,28 +859,33 @@ dest = * + 1
 ; Move the contents of the screen up 64 rows, as in response to down-arrow
 .scroll_down
 {
-    ldy #64
-.yloop
+    lda #&44
+    sta src+1
+    lda #&30
+    sta dest+1
     ldx #0
-.xloop
-    calculate_screen_address
-    phy
-    lda (screenptr)
-    pha
-    tya
-    sec
-    sbc #64
-    tay
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    ply
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
+    ldy #2
+.loop
+src = * + 1
+    lda &4400, x
+dest = * + 1
+    sta &3000, x
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
+    clc
+    lda src             ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta src
+    sta dest            ; src and dest low-order bytes change in parallel
+    bcc loop
+    inc dest+1
+    inc src+1
+    bpl loop            ; loop until src hits &8000 which is end of screen
 }
     lda #&6c
     jmp clear_to_end_of_screen
