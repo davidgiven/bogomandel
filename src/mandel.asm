@@ -777,6 +777,7 @@ dest = * + 1
     sta src+1
     lda #&31
     sta dest+1
+.outer
     ldx #&80            ; start the loop with the counter already at &80
     ldy #2
 .loop
@@ -791,8 +792,6 @@ dest = * + 1
     dec dest+1
     dey                 ; keep track of 128/256-byte blocks with Y
     bne loop            ; loop until we've done 384 bytes
-    ldx #&80
-    ldy #2
     clc
     lda dest             ; add &480 bytes to get to the next line
     adc #&80
@@ -806,7 +805,7 @@ dest = * + 1
     lda src+1
     adc #&04
     sta src+1
-    bpl loop            ; loop until src passes &8000 which is end of screen
+    bpl outer            ; loop until src passes &8000 which is end of screen
 }
     lda #&30
     ldx #&00
@@ -820,6 +819,7 @@ dest = * + 1
     lda #&2f
     sta dest+1
     ldx #0
+.outer
     ldx #&80            ; start the loop with the counter already at &80
     ldy #2
 .loop
@@ -833,8 +833,6 @@ dest = * + 1
     inc dest+1
     dey                 ; keep track of 128/256-byte blocks with Y
     bne loop            ; loop until we've done 384 bytes
-    ldx #&80
-    ldy #2
     clc
     lda dest             ; add &80 bytes to skip info panel on right
     adc #&80
@@ -846,15 +844,16 @@ dest = * + 1
     lda src
     adc #&80
     sta src
-    bcc loop
+    bcc outer
     inc src+1
-    bpl loop            ; loop until src hits &8000 which is end of screen
+    bpl outer            ; loop until src hits &8000 which is end of screen
 }
     lda #&31
     ldx #&80            ; the last run should have left dest set to &8180
 .clear_column
 {   sta dest+1
     stx dest            ; so no need to reset the low-order byte
+    clc
 .loopa
     ldx #0              ; jump back to here if we need to reset A
     lda #0
@@ -863,7 +862,6 @@ dest = * + 1
     sta &3180, x        ; &3000 gets overwritten as we progress 
     inx                 ; advance to next byte
     bpl loop            ; loop until we've done 128 bytes
-    clc
     lda dest            ; add &280 bytes to get to next line
     adc #&80
     sta dest
@@ -882,6 +880,7 @@ dest = * + 1
     lda #&30
     sta dest+1
     ldx #0
+.outer
     ldy #2
 .loop
 src = * + 1
@@ -894,16 +893,15 @@ dest = * + 1
     inc dest+1
     dey                 ; keep track of 256-byte blocks with Y
     bne loop            ; loop until we've done 512 bytes
-    ldy #2
     clc
     lda src             ; add &80 bytes to skip info panel on right
     adc #&80
     sta src
     sta dest            ; src and dest low-order bytes change in parallel
-    bcc loop
+    bcc outer
     inc dest+1
     inc src+1
-    bpl loop            ; loop until src hits &8000 which is end of screen
+    bpl outer           ; loop until src hits &8000 which is end of screen
 }
     lda #&6c
     jmp clear_to_end_of_screen
@@ -916,6 +914,7 @@ dest = * + 1
     lda #&7d
     sta dest+1
     ldx #0
+.outer
     ldy #2
 .loop
 src = * + 1
@@ -928,22 +927,18 @@ dest = * + 1
     inc dest+1
     dey                 ; keep track of 256-byte blocks with Y
     bne loop            ; loop until we've done 512 bytes
-    ldy #2
     sec
     lda src             ; subtract &480 bytes to get to the previous row
     sbc #&80
     sta src
     sta dest            ; src and dest low-order bytes change in parallel
-    php                 ; save carry flag for src later
     lda dest+1
     sbc #&04
     sta dest+1
-    plp
-    lda src+1
-    sbc #&04
+    sbc #&14            ; fixed difference between src and dest
     sta src+1
     cmp #&2d
-    bne loop            ; loop until src passes &3000 which is start of screen
+    bne outer           ; loop until src passes &3000 which is start of screen
 }
 {
     lda #&30
@@ -951,8 +946,8 @@ dest = * + 1
     ; lda #&00          ; the last run should have left dest set to &4400
     ; sta dest          ; so no need to reset the low-order byte
     ldx #0
-    ldy #2
 .loopa
+    ldy #2
     lda #0              ; jump back to here if we need to reset A
 .loop
 dest = * + 1
@@ -962,7 +957,6 @@ dest = * + 1
     inc dest+1          ; then increment high-order byte of address
     dey                 ; keep track of 256-byte blocks with Y
     bne loop            ; loop until we've done 512 bytes
-    ldy #2
     clc
     lda dest            ; add &80 bytes to skip info panel on right
     adc #&80
