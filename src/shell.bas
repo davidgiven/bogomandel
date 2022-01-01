@@ -11,7 +11,7 @@ scale=16
 PROChelp
 
 REPEAT
-step=0.125 * scale
+step=scale/16
 PROCrender
 PROCcursor
 UNTIL FALSE
@@ -84,7 +84,7 @@ COLOUR 7: PRINT 't: COLOUR 3: PRINT "   secs"
 ENDPROC
 
 DEFFNfixed(r)
-=(r*2048) AND &FFFE EOR &8000
+=(r*&1000) AND &FFFE EOR &8000
 
 DEFPROCdrawcursor
 IF NOT M% THEN ENDPROC
