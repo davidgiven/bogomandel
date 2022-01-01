@@ -89,11 +89,6 @@ print "zero page:", ~zp_start, "to", ~P%
 
     ; Calculate zr^2 + zi^2. 
 
-    lda #&3F
-    cmp zr+1            ; -4.0 <= zr < 4.0?
-    bpl bailout         ; if not, bail
-    cmp zi+1            ; -4.0 <= zi < 4.0?
-    bpl bailout         ; if not, bail
     clc
 zr = *+1
     lda 9999            ; A = low(zr^2) 
@@ -143,6 +138,8 @@ zr2_m_zi2_hi = *+1
     lda #99             ; A = high(zr^2 - zi^2) 
 kernel_cr_hi = *+1
     adc #99             ; A = high(zr^2 - zi^2 + cr)
+    cmp #&40            ; -4.0 <= zr < 4.0?
+    bmi bailout_early   ; if not, bail
     sta zr+1
 
     ; Calculate zi' = (zr+zi)^2 - (zr^2 + zi^2). 
@@ -168,6 +165,8 @@ kernel_ci_lo = *+1
     tya
 kernel_ci_hi = *+1
     adc #99
+    cmp #&40            ; -4.0 <= zi < 4.0?
+    bmi bailout_early   ; if not, bail
     sta zi+1
 
     dec iterations
@@ -209,6 +208,9 @@ screenptr = * + 1
     ; pixel colour in A on exit
     txa
     rts
+.bailout_early      ; go here when the _next_ iteration would overflow
+    dec iterations
+    bra bailout
 .kernel_end
 
 kernel_size = kernel_end - kernel
