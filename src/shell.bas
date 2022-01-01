@@ -6,12 +6,12 @@ ci=0
 vr=0
 vi=0
 scroll%=0
-scale=16
+scale=4
 
 PROChelp
 
 REPEAT
-step=scale/16
+step=scale/4
 PROCrender
 PROCcursor
 UNTIL FALSE
@@ -36,8 +36,8 @@ IF G%=140 THEN cr=cr-step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=141 THEN cr=cr+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=142 THEN ci=ci+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=143 THEN ci=ci-step/ 5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
-IF G%=43 AND scale>0.5 THEN scale=scale/2: UNTIL TRUE: ENDPROC
-IF G%=45 AND scale<16 THEN scale=scale*2: UNTIL TRUE: ENDPROC
+IF G%=43 AND scale>0.125 THEN scale=scale/2: UNTIL TRUE: ENDPROC
+IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
 IF G%=13 THEN UNTIL TRUE: ENDPROC
 IF G%=63 THEN PROChelp: UNTIL TRUE: ENDPROC
@@ -52,7 +52,7 @@ IF M% THEN COLOUR 1:PRINT " MANDEL" ELSE COLOUR 2:PRINT " JULIA"
 COLOUR 6: PRINT ''"  View"
 COLOUR 3: PRINT ;;"r=";: COLOUR 7: PRINT vr
 COLOUR 3: PRINT "i=";: COLOUR 7: PRINT vi
-COLOUR 3: PRINT "s=";: COLOUR 7: PRINT scale/4
+COLOUR 3: PRINT "s=";: COLOUR 7: PRINT scale
 COLOUR 6: PRINT ''" Cursor"
 COLOUR 3: PRINT ;;"r=";: COLOUR 7: PRINT cr
 COLOUR 3: PRINT "i=";: COLOUR 7: PRINT ci
@@ -69,7 +69,7 @@ PROCbanner
 TIME=0
 Z%!0=FNfixed(vr)
 Z%!2=FNfixed(vi)
-Z%?4=scale*4
+Z%?4=scale*16
 Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
