@@ -730,7 +730,7 @@ align &100 ; hacky, but prevents page transitions in the code
 
 ; Clears the screen between renders, or scrolls it and clears the bits that
 ; need to be re-rendered.  "scroll" is passed in from the shell to tell us
-; what to do.
+; what to do.  This code depends on intimate knowledge of the screen layout.
 .init_screen
     ldx scroll
     jmp (scrolltable,x)
@@ -742,201 +742,231 @@ align &100 ; hacky, but prevents page transitions in the code
     equw scroll_up
 
 .clear_screen
-    ldy #0
-.clear_to_end_of_screen
 {
-.yloop
-    lda row_table_lo, y
-    sta screenptr
-    lda row_table_hi, y
-    sta screenptr+1
-    lda #0
+    lda #&30
+.*clear_to_end_of_screen
+    sta dest+1
+    lda #&00            ; the last run should have left dest set to &8000
+    ; sta dest          ; so no need to reset the low-order byte
     ldx #0
-.xloop
-    sta (screenptr)
-    inc screenptr
-    sta (screenptr)
-    inc screenptr
-    bne no_carry
-    inc screenptr+1
-.no_carry
-    inx
-    bne xloop
-    tya
+    ldy #2
+.loop
+dest = * + 1
+    sta &3000, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc dest+1          ; then increment high-order byte of address
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
     clc
-    adc #8
-    tay
-    bne yloop
+    lda dest            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    lda #0
+    bcc loop
+    inc dest+1
+    bpl loop            ; loop until we hit &8000 which is end of screen
     rts
 }
 
 ; Move the contents of the screen right 32 columns, as in response to left-arrow
 .scroll_left
 {
-    ldx #95
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
+    lda #&31
+    sta src+1
+    lda #&31
+    sta dest+1
+.outer
+    ldx #&80            ; start the loop with the counter already at &80
+    ldy #2
+.loop
+    dex                 ; advance to previous byte
+src = * + 1
+    lda &3100, x        ; so these need to start &80 below the start addresses
+dest = * + 1
+    sta &3180, x
+    cpx #0
+    bne loop            ; count bytes to 0 (128 cycles the first time)
+    dec src+1           ; then decrement high-order bytes of addresses
+    dec dest+1
+    dey                 ; keep track of 128/256-byte blocks with Y
+    bne loop            ; loop until we've done 384 bytes
     clc
-    adc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    dex
-    dex
-    cpx #255
-    bne xloop
+    lda dest             ; add &480 bytes to get to the next line
+    adc #&80
+    sta dest
+    lda dest+1
+    adc #&04
+    sta dest+1
+    lda src
+    adc #&80
+    sta src
+    lda src+1
+    adc #&04
+    sta src+1
+    bpl outer            ; loop until src passes &8000 which is end of screen
 }
-{
-    ldy #0
-.yloop
-    ldx #0
-.xloop
-    calculate_screen_address
-    lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #32
-    bne xloop
-    iny
-    bne yloop
-    rts
-}
+    lda #&30
+    ldx #&00
+    jmp clear_column
 
 ; Move the contents of the screen left 32 columns, as in response to right-arrow
 .scroll_right
 {
-    ldx #32
-.xloop
-    ldy #0
-.yloop
-    calculate_screen_address
-    phx
-    lda (screenptr)
-    pha
-    txa
-    sec
-    sbc #32
-    tax
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    plx
-    iny
-    bne yloop
-    inx
-    inx
-    cpx #128
-    bne xloop
+    lda #&30
+    sta src+1
+    lda #&2f
+    sta dest+1
+    ldx #0
+.outer
+    ldx #&80            ; start the loop with the counter already at &80
+    ldy #2
+.loop
+src = * + 1
+    lda &3000, x        ; so these need to start &80 below the start addresses
+dest = * + 1
+    sta &2f80, x
+    inx                 ; advance to next byte
+    bne loop            ; count bytes to 256 (128 cycles the first time)
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 128/256-byte blocks with Y
+    bne loop            ; loop until we've done 384 bytes
+    clc
+    lda dest             ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    bcc skip
+    inc dest+1
+    clc
+.skip
+    lda src
+    adc #&80
+    sta src
+    bcc outer
+    inc src+1
+    bpl outer            ; loop until src hits &8000 which is end of screen
 }
-{
-    ldy #0
-.yloop
-    ldx #96
-.xloop
-    calculate_screen_address
+    lda #&31
+    ldx #&80            ; the last run should have left dest set to &8180
+.clear_column
+{   sta dest+1
+    stx dest            ; so no need to reset the low-order byte
+    clc
+.loopa
+    ldx #0              ; jump back to here if we need to reset A
     lda #0
-    sta (screenptr)
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
+.loop
+dest = * + 1
+    sta &3180, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bpl loop            ; loop until we've done 128 bytes
+    lda dest            ; add &280 bytes to get to next line
+    adc #&80
+    sta dest
+    lda dest+1
+    adc #&02
+    sta dest+1
+    bpl loopa           ; loop until we pass &8000
     rts
 }
 
 ; Move the contents of the screen up 64 rows, as in response to down-arrow
 .scroll_down
 {
-    ldy #64
-.yloop
+    lda #&44
+    sta src+1
+    lda #&30
+    sta dest+1
     ldx #0
-.xloop
-    calculate_screen_address
-    phy
-    lda (screenptr)
-    pha
-    tya
-    sec
-    sbc #64
-    tay
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    ply
-    inx
-    inx
-    cpx #128
-    bne xloop
-    iny
-    bne yloop
+.outer
+    ldy #2
+.loop
+src = * + 1
+    lda &4400, x
+dest = * + 1
+    sta &3000, x
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    clc
+    lda src             ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta src
+    sta dest            ; src and dest low-order bytes change in parallel
+    bcc outer
+    inc dest+1
+    inc src+1
+    bpl outer           ; loop until src hits &8000 which is end of screen
 }
-    ldy #192
+    lda #&6c
     jmp clear_to_end_of_screen
 
 ; Move the contents of the screen down 64 rows, as in response to up-arrow
 .scroll_up
 {
-    ldy #191
-.yloop
+    lda #&69
+    sta src+1
+    lda #&7d
+    sta dest+1
     ldx #0
-.xloop
-    calculate_screen_address
-    phy
-    lda (screenptr)
-    pha
-    tya
-    clc
-    adc #64
-    tay
-    calculate_screen_address
-    pla
-    sta (screenptr)
-    ply
-    inx
-    inx
-    cpx #128
-    bne xloop
-    dey
-    cpy #255
-    bne yloop
+.outer
+    ldy #2
+.loop
+src = * + 1
+    lda &6980, x
+dest = * + 1
+    sta &7d80, x
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1           ; then increment high-order bytes of addresses
+    inc dest+1
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    sec
+    lda src             ; subtract &480 bytes to get to the previous row
+    sbc #&80
+    sta src
+    sta dest            ; src and dest low-order bytes change in parallel
+    lda dest+1
+    sbc #&04
+    sta dest+1
+    sbc #&14            ; fixed difference between src and dest
+    sta src+1
+    cmp #&2d
+    bne outer           ; loop until src passes &3000 which is start of screen
 }
 {
-    ldy #0
-.yloop
-    lda row_table_lo, y
-    sta screenptr
-    lda row_table_hi, y
-    sta screenptr+1
-    lda #0
+    lda #&30
+    sta dest+1
+    ; lda #&00          ; the last run should have left dest set to &4400
+    ; sta dest          ; so no need to reset the low-order byte
     ldx #0
-.xloop
-    sta (screenptr)
-    inc screenptr
-    sta (screenptr)
-    inc screenptr
-    bne no_carry
-    inc screenptr+1
-.no_carry
-    inx
-    bne xloop
-    tya
+.loopa
+    ldy #2
+    lda #0              ; jump back to here if we need to reset A
+.loop
+dest = * + 1
+    sta &3000, x        ; &3000 gets overwritten as we progress 
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc dest+1          ; then increment high-order byte of address
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
     clc
-    adc #8
-    tay
-    cpy #64	
-    bne yloop
+    lda dest            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta dest
+    bcc loopa
+    lda dest+1
+    inc a
+    sta dest+1
+    cmp #&44
+    bne loopa           ; loop until we hit &4400
     rts
 }
 
