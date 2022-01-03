@@ -1,5 +1,3 @@
-ITERATIONS = 32
-
 fraction_bits = 12 ; including the bottom 0
 integer_bits = 4
 total_bits = fraction_bits + integer_bits
@@ -23,6 +21,7 @@ clock_irq  = 1<<6
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
 zp_start = &a8 ; we stomp over the transient command and filesystem workspace
+zp_end = &c0
 mc_base = &2000
 mc_top  = &3000
 
@@ -35,6 +34,7 @@ putbasic "src/shell.bas", "shell"
 ; --- Global page ------------------------------------------------------------
 
 org zp_start
+guard zp_end
 .centerx        equw 0
 .centery        equw 0
 .step           equb 0
@@ -43,6 +43,7 @@ org zp_start
 .ci             equw 0
 .clock          equw 0
 .scroll         equb 0
+.maxiter        equb 0
 
 .screeny        equb 0
 
@@ -82,7 +83,7 @@ print "zero page:", ~zp_start, "to", ~P%
     lda #accon_x
     trb accon
     
-    lda #ITERATIONS
+    lda maxiter
     sta iterations
 .iterator_loop
     ldy #1              ; indexing with this accesses the high byte 
@@ -283,6 +284,7 @@ guard mc_top
     jsr kernel_inout
     jsr build_row_table
     jsr build_col_table
+    jsr build_palette
 
     ; Map sideways RAM bank 4, containing our lookup table.
 
@@ -742,6 +744,7 @@ align &100 ; hacky, but prevents page transitions in the code
     equw scroll_right
     equw scroll_down
     equw scroll_up
+    equw increase_iters
 
 .clear_screen
 {
@@ -972,6 +975,67 @@ dest = * + 1
     rts
 }
 
+; Just wipe out the areas that hit the iteration limit so we can retry those
+.increase_iters
+{
+    lda #&30
+    sta src+1
+    sta dest+1
+    ; lda #&00          ; the last run should have left dest set to &8000
+    ; sta src           ; so no need to reset the low-order byte
+    ; sta dest
+    ldx #0
+    lda #2
+    sta xhi
+.loop
+src = * + 1
+    lda &3000, x        ; &3000 gets overwritten as we progress
+    eor #&c0            ; flip top bits of both pixels
+    beq blankboth
+    tay
+    and #&aa
+    beq blankleft
+    tya
+    and #&55
+    beq blankright
+.blanked
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1          ; then increment high-order byte of address
+    inc dest+1
+    dec xhi             ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    lda #2
+    sta xhi
+    clc
+    lda src            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta src
+    sta dest
+    lda #0
+    bcc loop
+    inc src+1
+    inc dest+1
+    bpl loop            ; loop until we hit &8000 which is end of screen
+    rts
+.blankboth
+    lda #0
+.blankany
+dest = * + 1
+    sta &3000, x
+    bra blanked
+.blankleft
+    tya
+    and #&55
+    bra blankany
+.blankright
+    tya
+    and #&aa
+    bra blankany
+.xhi
+    equb 2
+}
+
 ; Build the pixels-to-z table.
 .build_pixels_to_z_table
 {
@@ -1114,40 +1178,57 @@ temp = screenptr ; hacky temporary storage
 .build_row_table_loop_exit
     rts
 
+; Set up the palette for a given maximum number of iterations.  The
+; iteration counter goes downwards, so to keep the colours consistent
+; we need to change the palette when we change the iteration limit.
+.build_palette
+{
+    ldx maxiter
+    lda #1
+    sta palstep
+.outer
+    lda #(cycle AND &ff)
+    sta inptr
+.middle
+palstep = * + 1
+    ldy #1
+.inner
+inptr = * + 1
+    lda cycle
+    sta palette, x
+    dex
+    beq done
+    dey
+    bne inner
+    lda inptr
+    inc a
+    sta inptr
+    cmp #(cycle_end AND &ff)
+    bne middle
+    asl palstep
+    bra outer
+.done
+    lda #&80		; logical colour 8: black
+    sta palette+0
+    rts
+
+    align 8             ; make sure the whole table is on the same page
+.cycle
+    ; This is our basic seven-colour palette. We cycle through it repeatedly,
+    ; but slower on each iteration.
+    equb &A0            ; logical colour 12: blue
+    equb &8A            ; logical colour 11: yellow
+    equb &88            ; logical colour 10: green
+    equb &82            ; logical colour 9:  red
+    equb &AA            ; logical colour 15: white
+    equb &A8            ; logical colour 14: cyan
+    equb &A2            ; logical colour 13: magenta
+.cycle_end    
+}
 
 .kernel_data
     skip kernel_size
     copyblock kernel, kernel_end, kernel_data
-
-; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
-align &100 ; must be page aligned
-.palette
-    equb &80 ; high-bit colours 8-15
-    equb &82
-    equb &88
-    equb &8A
-    equb &A0
-    equb &A2
-    equb &A8
-    equb &AA
-    ; These colours are used for looking up iterations. They're just repeated
-    ; copies of the high-bit colours, black excluded (because black stripes
-    ; look ugly).
-    for i, 0, 2
-        equb &82
-        equb &88
-        equb &8A
-        equb &A0
-        equb &A2
-        equb &A8
-        equb &AA
-    next
-    equb &82 ; stray
-    equb &88 ; stray
-    equb &8A ; stray
-    assert (* - palette) = ITERATIONS
-    equb &A0 ; for points *outside* the set
-
     
 .main_program_end
 
@@ -1162,6 +1243,7 @@ align &100
 .pixels_to_zr_hi    skip &80
 .col_table_lo       skip &80 ; pixels; 0..255
 .col_table_hi       skip &80
+.palette            skip &100
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
 save "mandel", main_program_start, main_program_end

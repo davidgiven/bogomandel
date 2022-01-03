@@ -7,6 +7,7 @@ vr=0
 vi=0
 scroll%=0
 scale=4
+maxiter%=32
 
 PROChelp
 
@@ -38,6 +39,8 @@ IF G%=142 THEN ci=ci+step/5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=143 THEN ci=ci-step/ 5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=43 AND scale>0.125 THEN scale=scale/2: UNTIL TRUE: ENDPROC
 IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
+IF G%=60 AND maxiter%>1 THEN maxiter%=(maxiter%+1)/2: UNTIL TRUE: ENDPROC
+IF G%=62 AND maxiter%<255 THEN maxiter%=maxiter%*2:scroll%=10:UNTIL TRUE:ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
 IF G%=13 THEN UNTIL TRUE: ENDPROC
 IF G%=63 THEN PROChelp: UNTIL TRUE: ENDPROC
@@ -56,6 +59,9 @@ COLOUR 3: PRINT "s=";: COLOUR 7: PRINT scale
 COLOUR 6: PRINT ''" Cursor"
 COLOUR 3: PRINT ;;"r=";: COLOUR 7: PRINT cr
 COLOUR 3: PRINT "i=";: COLOUR 7: PRINT ci
+@%=&0000A
+COLOUR 3: PRINT '"max ";: COLOUR 7: PRINT ;maxiter%
+COLOUR 3: PRINT "  iters"
 
 COLOUR 6: PRINT TAB(1,30);"?";: COLOUR 3: PRINT " help"
 ENDPROC
@@ -68,6 +74,7 @@ IF vr<-2 THEN vr=-2: scroll%=0
 IF vr>+2 THEN vr=+2: scroll%=0
 IF vi<-2 THEN vi=-2: scroll%=0
 IF vi>+2 THEN vi=+2: scroll%=0
+IF maxiter%>255 THEN maxiter%=255
 
 PROCbanner
 
@@ -79,9 +86,10 @@ Z%?5=NOT M%
 Z%!6=FNfixed(cr)
 Z%!8=FNfixed(ci)
 Z%?12=scroll%
+Z%?13=maxiter%
 CALL &2000
 t=(Z%!10 AND &FFFF)/100
-PRINT TAB(0,15);
+PRINT TAB(0,18);
 @%=5
 COLOUR 7: PRINT INT((128*256)/t): COLOUR 3: PRINT "   px/s"
 @%=&20105
@@ -113,19 +121,21 @@ PRINT'TAB(7);"Cursor keys"
 PRINT'TAB(7);"+ and -"
 PRINT'TAB(7);"Shift + cursor keys"
 PRINT'TAB(7);"Space"
+PRINT'TAB(7);"< and >"
 PRINT'TAB(7);"Return"
 COLOUR 3
 PRINTTAB(9, 12);"Pan image"
 PRINT'TAB(9);"Zooms in and out"
 PRINT'TAB(9);"Moves the cursor"
 PRINT'TAB(9);"Flips Julia and Mandelbrot mode"
-PRINTTAB(9);"Rerenders the current image"
+PRINTTAB(9);"Changes iteration limit"
+PRINT'TAB(9);"Rerenders the current image"
 COLOUR 1
-PROCcenter("You don't have to wait for a render to", 23)
-PROCcenter("complete before pressing a key!", 24)
+PROCcenter("You don't have to wait for a render to", 24)
+PROCcenter("complete before pressing a key!", 25)
 COLOUR 5
-PROCcenter("Try moving the cursor while in", 26)
-PROCcenter("Julia mode!", 27)
+PROCcenter("Try moving the cursor while in", 27)
+PROCcenter("Julia mode!", 28)
 
 COLOUR 3: PROCcenter("Press any key to continue", 30)
 IFGET
