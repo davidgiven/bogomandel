@@ -1,5 +1,3 @@
-ITERATIONS = 32
-
 fraction_bits = 12 ; including the bottom 0
 integer_bits = 4
 total_bits = fraction_bits + integer_bits
@@ -45,6 +43,7 @@ guard zp_end
 .ci             equw 0
 .clock          equw 0
 .scroll         equb 0
+.maxiter        equb 0
 
 .screeny        equb 0
 
@@ -84,7 +83,7 @@ print "zero page:", ~zp_start, "to", ~P%
     lda #accon_x
     trb accon
     
-    lda #ITERATIONS
+    lda maxiter
     sta iterations
 .iterator_loop
     ldy #1              ; indexing with this accesses the high byte 
@@ -285,6 +284,7 @@ guard mc_top
     jsr kernel_inout
     jsr build_row_table
     jsr build_col_table
+    jsr build_palette
 
     ; Map sideways RAM bank 4, containing our lookup table.
 
@@ -1116,40 +1116,43 @@ temp = screenptr ; hacky temporary storage
 .build_row_table_loop_exit
     rts
 
+; Set up the palette for a given maximum number of iterations.  The
+; iteration counter goes downwards, so to keep the colours consistent
+; we need to change the palette when we change the iteration limit.
+.build_palette
+{
+    ldx maxiter
+.outer
+    ldy #0
+.inner
+    lda cycle, y
+    sta palette, x
+    dex
+    beq done
+    iny
+    cpy #(cycle_end - cycle)
+    beq outer
+    bne inner
+.done
+    lda #&80		; logical colour 8: black
+    sta palette+0
+    rts
+
+.cycle
+    ; These are the colours that are cycled through for the main palette
+    equb &A0            ; logical colour 12: blue
+    equb &8A            ; logical colour 11: yellow
+    equb &88            ; logical colour 10: green
+    equb &82            ; logical colour 9:  red
+    equb &AA            ; logical colour 15: white
+    equb &A8            ; logical colour 14: cyan
+    equb &A2            ; logical colour 13: magenta
+.cycle_end    
+}
 
 .kernel_data
     skip kernel_size
     copyblock kernel, kernel_end, kernel_data
-
-; Maps logical colours (0..15) to MODE 2 left-hand-pixel values.
-align &100 ; must be page aligned
-.palette
-    equb &80 ; high-bit colours 8-15
-    equb &82
-    equb &88
-    equb &8A
-    equb &A0
-    equb &A2
-    equb &A8
-    equb &AA
-    ; These colours are used for looking up iterations. They're just repeated
-    ; copies of the high-bit colours, black excluded (because black stripes
-    ; look ugly).
-    for i, 0, 2
-        equb &82
-        equb &88
-        equb &8A
-        equb &A0
-        equb &A2
-        equb &A8
-        equb &AA
-    next
-    equb &82 ; stray
-    equb &88 ; stray
-    equb &8A ; stray
-    assert (* - palette) = ITERATIONS
-    equb &A0 ; for points *outside* the set
-
     
 .main_program_end
 
@@ -1164,6 +1167,7 @@ align &100
 .pixels_to_zr_hi    skip &80
 .col_table_lo       skip &80 ; pixels; 0..255
 .col_table_hi       skip &80
+.palette            skip &100
 
 print "mandel:", ~main_program_start, "to", ~main_program_end, "data top:", ~P%
 save "mandel", main_program_start, main_program_end
