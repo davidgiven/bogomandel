@@ -1184,24 +1184,38 @@ temp = screenptr ; hacky temporary storage
 .build_palette
 {
     ldx maxiter
+    lda #1
+    sta palstep
 .outer
-    ldy #0
+    lda #(cycle AND &ff)
+    sta inptr
+.middle
+palstep = * + 1
+    ldy #1
 .inner
-    lda cycle, y
+inptr = * + 1
+    lda cycle
     sta palette, x
     dex
     beq done
-    iny
-    cpy #(cycle_end - cycle)
-    beq outer
+    dey
     bne inner
+    lda inptr
+    inc a
+    sta inptr
+    cmp #(cycle_end AND &ff)
+    bne middle
+    asl palstep
+    bra outer
 .done
     lda #&80		; logical colour 8: black
     sta palette+0
     rts
 
+    align 8             ; make sure the whole table is on the same page
 .cycle
-    ; These are the colours that are cycled through for the main palette
+    ; This is our basic seven-colour palette. We cycle through it repeatedly,
+    ; but slower on each iteration.
     equb &A0            ; logical colour 12: blue
     equb &8A            ; logical colour 11: yellow
     equb &88            ; logical colour 10: green
