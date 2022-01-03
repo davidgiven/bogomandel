@@ -985,28 +985,28 @@ dest = * + 1
     ; sta src           ; so no need to reset the low-order byte
     ; sta dest
     ldx #0
-    ldy #2
+    lda #2
+    sta xhi
 .loop
 src = * + 1
     lda &3000, x        ; &3000 gets overwritten as we progress
-    phy
+    eor #&c0            ; flip top bits of both pixels
+    beq blankboth
     tay
     and #&aa
-    cmp #&80
-    beq blank
+    beq blankleft
     tya
     and #&55
-    cmp #&40
-    beq blank
+    beq blankright
 .blanked
-    ply
     inx                 ; advance to next byte
     bne loop            ; loop until we've done 256 bytes
     inc src+1          ; then increment high-order byte of address
     inc dest+1
-    dey                 ; keep track of 256-byte blocks with Y
+    dec xhi             ; keep track of 256-byte blocks with Y
     bne loop            ; loop until we've done 512 bytes
-    ldy #2
+    lda #2
+    sta xhi
     clc
     lda src            ; add &80 bytes to skip info panel on right
     adc #&80
@@ -1018,11 +1018,22 @@ src = * + 1
     inc dest+1
     bpl loop            ; loop until we hit &8000 which is end of screen
     rts
-.blank
+.blankboth
     lda #0
+.blankany
 dest = * + 1
     sta &3000, x
-    beq blanked
+    bra blanked
+.blankleft
+    tya
+    and #&55
+    bra blankany
+.blankright
+    tya
+    and #&aa
+    bra blankany
+.xhi
+    equb 2
 }
 
 ; Build the pixels-to-z table.
