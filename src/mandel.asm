@@ -23,6 +23,7 @@ clock_irq  = 1<<6
 accon_x    = 4 ; ACCON bit which maps shadow RAM into the address space
 
 zp_start = &a8 ; we stomp over the transient command and filesystem workspace
+zp_end = &c0
 mc_base = &2000
 mc_top  = &3000
 
@@ -35,6 +36,7 @@ putbasic "src/shell.bas", "shell"
 ; --- Global page ------------------------------------------------------------
 
 org zp_start
+guard zp_end
 .centerx        equw 0
 .centery        equw 0
 .step           equb 0
