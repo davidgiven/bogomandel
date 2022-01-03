@@ -40,7 +40,7 @@ IF G%=143 THEN ci=ci-step/ 5: PROCbanner: IF NOT M% UNTIL TRUE: ENDPROC
 IF G%=43 AND scale>0.125 THEN scale=scale/2: UNTIL TRUE: ENDPROC
 IF G%=45 AND scale<4 THEN scale=scale*2: UNTIL TRUE: ENDPROC
 IF G%=60 AND maxiter%>1 THEN maxiter%=(maxiter%+1)/2: UNTIL TRUE: ENDPROC
-IF G%=62 AND maxiter%<255 THEN maxiter%=maxiter%*2: UNTIL TRUE: ENDPROC
+IF G%=62 AND maxiter%<255 THEN maxiter%=maxiter%*2:scroll%=10:UNTIL TRUE:ENDPROC
 IF G%=32 THEN M%=NOT M%: UNTIL TRUE: ENDPROC
 IF G%=13 THEN UNTIL TRUE: ENDPROC
 IF G%=63 THEN PROChelp: UNTIL TRUE: ENDPROC

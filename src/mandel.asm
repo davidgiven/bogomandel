@@ -744,6 +744,7 @@ align &100 ; hacky, but prevents page transitions in the code
     equw scroll_right
     equw scroll_down
     equw scroll_up
+    equw increase_iters
 
 .clear_screen
 {
@@ -972,6 +973,56 @@ dest = * + 1
     cmp #&44
     bne loopa           ; loop until we hit &4400
     rts
+}
+
+; Just wipe out the areas that hit the iteration limit so we can retry those
+.increase_iters
+{
+    lda #&30
+    sta src+1
+    sta dest+1
+    ; lda #&00          ; the last run should have left dest set to &8000
+    ; sta src           ; so no need to reset the low-order byte
+    ; sta dest
+    ldx #0
+    ldy #2
+.loop
+src = * + 1
+    lda &3000, x        ; &3000 gets overwritten as we progress
+    phy
+    tay
+    and #&aa
+    cmp #&80
+    beq blank
+    tya
+    and #&55
+    cmp #&40
+    beq blank
+.blanked
+    ply
+    inx                 ; advance to next byte
+    bne loop            ; loop until we've done 256 bytes
+    inc src+1          ; then increment high-order byte of address
+    inc dest+1
+    dey                 ; keep track of 256-byte blocks with Y
+    bne loop            ; loop until we've done 512 bytes
+    ldy #2
+    clc
+    lda src            ; add &80 bytes to skip info panel on right
+    adc #&80
+    sta src
+    sta dest
+    lda #0
+    bcc loop
+    inc src+1
+    inc dest+1
+    bpl loop            ; loop until we hit &8000 which is end of screen
+    rts
+.blank
+    lda #0
+dest = * + 1
+    sta &3000, x
+    beq blanked
 }
 
 ; Build the pixels-to-z table.
